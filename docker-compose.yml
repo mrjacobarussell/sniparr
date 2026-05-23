@@ -16,6 +16,9 @@ services:
       # Optional — reverse proxy / SSO auth:
       # - SNIPARR_AUTH_MODE=proxy
       # - SNIPARR_AUTH_PROXY_HEADER=Remote-User
+    labels:
+      - "net.unraid.docker.webui=http://[IP]:[PORT:9705]/"
+      - "net.unraid.docker.icon=https://raw.githubusercontent.com/mrjacobarussell/sniparr/main/frontend/static/logo/256.png"
     restart: unless-stopped
     stop_signal: SIGTERM
     stop_grace_period: 30s
