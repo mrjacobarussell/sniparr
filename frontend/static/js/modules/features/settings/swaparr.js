@@ -286,11 +286,61 @@
             </div>
             
             <div class="settings-group">
+                <h3>Obfuscated Torrent Detection</h3>
+                <p class="setting-help" style="margin-bottom: 20px; color: #9ca3af;">
+                    Some private trackers rename torrents to their info-hash to avoid DMCA detection. These show up in Deluge with the same value for both Name and Hash. Sniparr can detect these and take action.
+                </p>
+
+                <div class="setting-item">
+                    <label for="swaparr_obfuscated_detection">
+                        <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparr" class="info-icon" title="Detect hash-named (obfuscated) torrents" target="_blank" rel="noopener">
+                            <i class="fas fa-info-circle"></i>
+                        </a>
+                        Detect Obfuscated Torrents:
+                    </label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="swaparr_obfuscated_detection" ${
+                          settings.obfuscated_torrent_detection === true ? "checked" : ""
+                        }>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <p class="setting-help">Detect downloads whose name is a raw hex hash (MD5 / SHA1 / SHA256) — a common private tracker obfuscation technique</p>
+                </div>
+
+                <div class="setting-item">
+                    <label for="swaparr_obfuscated_action">
+                        <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparr" class="info-icon" title="Action to take on obfuscated torrents" target="_blank" rel="noopener">
+                            <i class="fas fa-info-circle"></i>
+                        </a>
+                        Action on Obfuscated Torrents:
+                    </label>
+                    <select id="swaparr_obfuscated_action" style="
+                        background: #1f2937;
+                        color: #f3f4f6;
+                        border: 1px solid #374151;
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                        font-size: 14px;
+                        min-width: 200px;
+                    ">
+                        <option value="ignore" ${(settings.obfuscated_torrent_action || "ignore") === "ignore" ? "selected" : ""}>Do Nothing (Skip / Ignore)</option>
+                        <option value="notify"  ${(settings.obfuscated_torrent_action || "ignore") === "notify"  ? "selected" : ""}>Send Push Notification</option>
+                        <option value="delete"  ${(settings.obfuscated_torrent_action || "ignore") === "delete"  ? "selected" : ""}>Delete the Download</option>
+                    </select>
+                    <p class="setting-help">
+                        <strong>Do Nothing</strong> — log and skip; normal strike logic still runs.<br>
+                        <strong>Notify</strong> — send a push notification via your configured notification channels then skip.<br>
+                        <strong>Delete</strong> — immediately remove from the arr queue and download client (no strikes required).
+                    </p>
+                </div>
+            </div>
+
+            <div class="settings-group">
                 <h3>Security Features</h3>
                 <p class="setting-help" style="margin-bottom: 20px; color: #9ca3af;">
                     Advanced security features to protect your system from malicious downloads and suspicious content by analyzing download names and titles. Detection is based on filename patterns, not file contents.
                 </p>
-                
+
                 <div class="setting-item">
                     <label for="swaparr_malicious_detection">
                         <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparrmalicious-file-detection" class="info-icon" title="Enable malicious file detection" target="_blank" rel="noopener">
@@ -747,6 +797,12 @@
 
             const sleepDuration = document.getElementById("swaparr_sleep_duration");
             if (sleepDuration) settings.sleep_duration = parseInt(sleepDuration.value) * 60;
+
+            const obfuscatedDetection = document.getElementById("swaparr_obfuscated_detection");
+            if (obfuscatedDetection) settings.obfuscated_torrent_detection = obfuscatedDetection.checked;
+
+            const obfuscatedAction = document.getElementById("swaparr_obfuscated_action");
+            if (obfuscatedAction) settings.obfuscated_torrent_action = obfuscatedAction.value;
 
             const malicious = document.getElementById("swaparr_malicious_detection");
             if (malicious) settings.malicious_file_detection = malicious.checked;

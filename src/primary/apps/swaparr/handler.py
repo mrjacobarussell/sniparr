@@ -106,6 +106,16 @@ def generate_item_hash(item):
     hash_input = f"{item['name']}_{item['size']}"
     return hashlib.md5(hash_input.encode('utf-8')).hexdigest()
 
+import re as _re
+_HASH_RE = _re.compile(r'^[0-9a-f]{32}$|^[0-9a-f]{40}$|^[0-9a-f]{64}$', _re.IGNORECASE)
+
+def is_obfuscated_name(name: str) -> bool:
+    """Return True if the download name looks like a raw hex hash (MD5/SHA1/SHA256)."""
+    if not name:
+        return False
+    return bool(_HASH_RE.match(name.strip()))
+
+
 def check_for_malicious_files(item, settings):
     """Check if download contains malicious file types.
     Extension check uses only the actual file extension (part after the last dot)
@@ -760,6 +770,52 @@ def process_stalled_downloads(app_name, instance_name, instance_data, settings):
                         item_state = "Monitoring (Queued)"
                         continue
             
+            # Obfuscated torrent detection — name is a raw hex hash (private tracker technique)
+            if settings.get("obfuscated_torrent_detection", False) and is_obfuscated_name(item["name"]):
+                action = settings.get("obfuscated_torrent_action", "ignore")
+                swaparr_logger.warning(f"Obfuscated torrent detected: '{item['name']}' (hash name)")
+
+                if action == "delete":
+                    if not settings.get("dry_run", False):
+                        trigger_search = settings.get("research_removed", False)
+                        if delete_download(app_name, instance_data["api_url"], instance_data["api_key"], item["id"], True, item, trigger_search):
+                            swaparr_logger.info(f"Removed obfuscated torrent: '{item['name']}'")
+                            removed_items[item_hash] = {
+                                "name": item["name"],
+                                "removed_time": datetime.utcnow().isoformat(),
+                                "reason": "Obfuscated name (hash)",
+                                "size": item["size"]
+                            }
+                            save_removed_items(app_name, removed_items)
+                            increment_swaparr_stat("removals", 1)
+                        item_state = "REMOVED (Obfuscated)"
+                    else:
+                        swaparr_logger.info(f"DRY RUN: Would remove obfuscated torrent: '{item['name']}'")
+                        item_state = "Would Remove (Obfuscated - Dry Run)"
+
+                elif action == "notify":
+                    try:
+                        from src.primary.notification_manager import send_notification
+                        send_notification(
+                            "Swaparr: Obfuscated Torrent Detected",
+                            f"Download name is a raw hash — possible private tracker obfuscation.\n"
+                            f"App: {app_name}  |  Instance: {instance_name}\n"
+                            f"Hash: {item['name']}",
+                            level="warning"
+                        )
+                    except Exception as _ne:
+                        swaparr_logger.error(f"Failed to send obfuscated torrent notification: {_ne}")
+                    item_state = "Notified (Obfuscated)"
+
+                else:  # "ignore" — do nothing, let it pass through normal processing
+                    item_state = "Ignored (Obfuscated)"
+                    SWAPARR_STATS['items_ignored'] += 1
+                    if not settings.get("dry_run", False):
+                        increment_swaparr_stat("ignored", 1)
+
+                if action != "ignore":
+                    continue  # skip normal strike logic for delete/notify
+
             # Check for malicious files FIRST - immediate removal without strikes
             is_malicious, malicious_reason = check_for_malicious_files(item, settings)
             if is_malicious:

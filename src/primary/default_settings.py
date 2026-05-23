@@ -185,6 +185,8 @@ SWAPARR_DEFAULTS = {
     ],
     "age_based_removal": False,
     "max_age_days": 7,
+    "obfuscated_torrent_detection": False,
+    "obfuscated_torrent_action": "ignore",
     "quality_based_removal": False,
     "blocked_quality_patterns": [
         "cam", "camrip", "hdcam", "ts", "telesync", "tc", "telecine",
