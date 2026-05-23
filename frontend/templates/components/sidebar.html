@@ -63,6 +63,10 @@
                     <div class="nav-icon-wrapper"><i class="fas fa-user"></i></div>
                     <span>User</span>
                 </a>
+                <a href="./#security-audit" class="nav-item nav-item-sub" id="mainSecurityAuditNav">
+                    <div class="nav-icon-wrapper"><i class="fas fa-shield-alt"></i></div>
+                    <span>Security Audit Log</span>
+                </a>
             </div>
         </div>
 
@@ -263,6 +267,7 @@ function setActiveNavItem() {
     else if (h === '#backup-restore') { selector = '#mainSettingsBackupRestoreNav'; group = 'sidebar-group-system'; }
     else if (h === '#settings-logs') { selector = '#mainSettingsLogsNav'; group = 'sidebar-group-system'; }
     else if (h === '#user') { selector = '#mainSettingsUserNav'; group = 'sidebar-group-system'; }
+    else if (h === '#security-audit') { selector = '#mainSecurityAuditNav'; group = 'sidebar-group-system'; }
 
     // Fallback
     else { selector = '#homeNav'; group = null; }

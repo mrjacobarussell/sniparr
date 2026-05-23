@@ -126,7 +126,7 @@ let sniparrUI = {
         
         // Check which sidebar should be shown based on current section
         console.log(`[sniparrUI] Initialization - current section: ${this.currentSection}`);
-        if (this.currentSection === 'settings' || this.currentSection === 'scheduling' || this.currentSection === 'notifications' || this.currentSection === 'backup-restore' || this.currentSection === 'user' || this.currentSection === 'settings-logs') {
+        if (this.currentSection === 'settings' || this.currentSection === 'scheduling' || this.currentSection === 'notifications' || this.currentSection === 'backup-restore' || this.currentSection === 'user' || this.currentSection === 'settings-logs' || this.currentSection === 'security-audit') {
             console.log('[sniparrUI] Initialization - showing settings group');
             this.showSettingsSidebar();
         } else if (this.currentSection === 'system' || this.currentSection === 'sniparr-manager' || this.currentSection === 'logs') {
@@ -528,7 +528,7 @@ let sniparrUI = {
             }
 
             // Don't refresh page when navigating to/from instance editor or between app sections
-            const noRefreshSections = ['home', 'instance-editor', 'profile-editor', 'sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros', 'prowlarr', 'swaparr', 'system', 'sniparr-manager', 'logs', 'about', 'settings', 'scheduling', 'notifications', 'backup-restore', 'settings-logs', 'user', 'indexer-hunt', 'indexer-snipe-stats', 'indexer-snipe-history'];
+            const noRefreshSections = ['home', 'instance-editor', 'profile-editor', 'sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros', 'prowlarr', 'swaparr', 'system', 'sniparr-manager', 'logs', 'about', 'settings', 'scheduling', 'notifications', 'backup-restore', 'settings-logs', 'user', 'security-audit', 'indexer-hunt', 'indexer-snipe-stats', 'indexer-snipe-history'];
             const skipRefresh = noRefreshSections.includes(section) || noRefreshSections.includes(this.currentSection);
             
             if (!skipRefresh) {
@@ -1518,6 +1518,12 @@ let sniparrUI = {
             this.currentSection = 'user';
             this.showSettingsSidebar();
             this.initializeUser();
+        } else if (section === 'security-audit' && document.getElementById('auditLogSection')) {
+            document.getElementById('auditLogSection').classList.add('active');
+            document.getElementById('auditLogSection').style.display = 'block';
+            newTitle = 'Security Audit Log';
+            this.currentSection = 'security-audit';
+            this.showSettingsSidebar();
         } else if (section === 'instance-editor' && document.getElementById('instanceEditorSection')) {
             document.getElementById('instanceEditorSection').classList.add('active');
             document.getElementById('instanceEditorSection').style.display = 'block';
