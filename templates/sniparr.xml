@@ -13,7 +13,7 @@
   <Category>MediaApp: Video MediaApp: Music MediaApp: Books Tools:</Category>
   <WebUI>http://[IP]:[PORT:9705]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/mrjacobarussell/sniparr/main/templates/sniparr.xml</TemplateURL>
-  <Icon>https://raw.githubusercontent.com/mrjacobarussell/sniparr/main/frontend/static/logo/sniparr-256.png</Icon>
+  <Icon>https://raw.githubusercontent.com/mrjacobarussell/sniparr/main/frontend/static/logo/sniparr-128.png</Icon>
   <ExtraParams>--restart=unless-stopped</ExtraParams>
   <PostArgs/>
   <CPUset/>
