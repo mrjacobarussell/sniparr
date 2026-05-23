@@ -481,6 +481,7 @@
             state_management_mode: instance.state_management_mode || 'custom',
             state_management_hours: instance.state_management_hours || 72,
             swaparr_enabled: instance.swaparr_enabled === true,
+            swaparr_remove_completed_stalled: instance.swaparr_remove_completed_stalled !== false,
             // Additional Options (per-instance)
             monitored_only: instance.monitored_only !== false,
             skip_future_episodes: instance.skip_future_episodes !== false,
@@ -1015,6 +1016,16 @@
                         </div>
                         <p class="editor-help-text">Enable Swaparr to monitor and remove stalled downloads for this instance</p>
                     </div>
+                    <div class="editor-field-group">
+                        <div class="editor-setting-item flex-row">
+                            <label>Remove Completed (100%) Stalled</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="editor-swaparr-remove-completed-stalled" ${safeInstance.swaparr_remove_completed_stalled ? 'checked' : ''}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <p class="editor-help-text">When enabled, Swaparr can remove downloads that are 100% complete but stuck in the queue after max strikes. Disable if this instance has downloads that need manual import review.</p>
+                    </div>
                     ` : `
                     <div class="editor-field-group">
                         <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">Enable Swaparr in Settings to access additional monitoring features for this instance.</p>
@@ -1087,6 +1098,11 @@
         const swaparrInput = document.getElementById('editor-swaparr');
         if (swaparrInput) {
             newData.swaparr_enabled = swaparrInput.checked;
+        }
+
+        const swaparrRemoveCompletedStalledInput = document.getElementById('editor-swaparr-remove-completed-stalled');
+        if (swaparrRemoveCompletedStalledInput) {
+            newData.swaparr_remove_completed_stalled = swaparrRemoveCompletedStalledInput.checked;
         }
   
         if (appType === 'sonarr') {

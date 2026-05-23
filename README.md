@@ -146,5 +146,6 @@ Sniparr is a ground-up project by [MrJacobarussell](https://github.com/mrjacobar
 - **[plexguide/Huntarr.io](https://github.com/plexguide/Huntarr.io)** — the original missing-media hunt concept
 - **[mrjacobarussell/huntarr](https://github.com/mrjacobarussell/huntarr)** — a personal fork where Swaparr quality-rejection handling, Lidarr low-match clearing, and mount-aware retry were proven out
 - **[av1155/houndarr](https://github.com/av1155/houndarr)** — security-first approach that inspired the SSRF guard, CSRF tokens, signed sessions, and proxy auth patterns
+- **[ThijmenGThN/swaparr](https://github.com/ThijmenGThN/swaparr)** — the original stalled-download strike system; Sniparr's Swaparr integration is based on this work and tracks upstream improvements
 
 No code from any of these appears in this repository.

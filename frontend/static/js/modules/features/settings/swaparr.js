@@ -250,6 +250,22 @@
                 </div>
                 
                 <div class="setting-item">
+                    <label for="swaparr_strike_queued">
+                        <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparr" class="info-icon" title="Allow queued downloads to accumulate strikes" target="_blank" rel="noopener">
+                            <i class="fas fa-info-circle"></i>
+                        </a>
+                        Strike Queued Downloads:
+                    </label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="swaparr_strike_queued" ${
+                          settings.strike_queued === true ? "checked" : ""
+                        }>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <p class="setting-help">When enabled, downloads with status "queued" can accumulate strikes after a 1-hour grace period. When disabled (default), queued downloads are always skipped — matching upstream Swaparr behavior (STRIKE_QUEUED=false)</p>
+                </div>
+
+                <div class="setting-item">
                     <label for="swaparr_sleep_duration">
                         <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparrsleep-duration" class="info-icon" title="Time between Swaparr cycles" target="_blank" rel="noopener">
                             <i class="fas fa-info-circle"></i>
@@ -725,6 +741,9 @@
 
             const removeCompletedStalled = document.getElementById("swaparr_remove_completed_stalled");
             if (removeCompletedStalled) settings.remove_completed_stalled = removeCompletedStalled.checked;
+
+            const strikeQueued = document.getElementById("swaparr_strike_queued");
+            if (strikeQueued) settings.strike_queued = strikeQueued.checked;
 
             const sleepDuration = document.getElementById("swaparr_sleep_duration");
             if (sleepDuration) settings.sleep_duration = parseInt(sleepDuration.value) * 60;

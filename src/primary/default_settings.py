@@ -172,6 +172,7 @@ SWAPARR_DEFAULTS = {
     "dry_run": False,
     "ignore_usenet_queued": True,
     "remove_completed_stalled": True,
+    "strike_queued": False,
     "sleep_duration": 900,
     "malicious_file_detection": False,
     "malicious_extensions": [

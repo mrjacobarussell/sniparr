@@ -1,6 +1,6 @@
 """
 Enhanced implementation of the swaparr functionality to detect and remove stalled downloads in Starr apps.
-Based on the functionality provided by https://github.com/ThijmenGThN/swaparr/releases/tag/0.10.0
+Based on the functionality provided by https://github.com/ThijmenGThN/swaparr (v0.12.0)
 
 Improvements in this version:
 - Better statistics tracking and reporting
@@ -696,43 +696,69 @@ def process_stalled_downloads(app_name, instance_name, instance_data, settings):
                     increment_swaparr_stat("ignored", 1)  # Track ignored items in persistent system
                 continue
             
-            # Handle delayed items - we'll skip these (respects delay profiles)
+            # Handle delayed items - skip (respects delay profiles)
             if item["status"] == "delay":
                 swaparr_logger.debug(f"Ignoring delayed download: {item['name']}")
                 item_state = "Ignored (Delayed)"
                 SWAPARR_STATS['items_ignored'] += 1
                 if not settings.get("dry_run", False):
-                    increment_swaparr_stat("ignored", 1)  # Track ignored items in persistent system
+                    increment_swaparr_stat("ignored", 1)
                 continue
-            
+
+            # Bypass paused downloads - user intentionally paused them (v0.12.0 #66)
+            if item["status"] == "paused":
+                swaparr_logger.debug(f"Ignoring paused download: {item['name']}")
+                item_state = "Ignored (Paused)"
+                SWAPARR_STATS['items_ignored'] += 1
+                if not settings.get("dry_run", False):
+                    increment_swaparr_stat("ignored", 1)
+                continue
+
+            # Bypass completed downloads - fully downloaded, arr app will clear them (v0.12.0 #67)
+            if item["status"] == "completed":
+                swaparr_logger.debug(f"Ignoring completed download: {item['name']}")
+                item_state = "Ignored (Completed)"
+                SWAPARR_STATS['items_ignored'] += 1
+                if not settings.get("dry_run", False):
+                    increment_swaparr_stat("ignored", 1)
+                continue
+
             # Special handling for "queued" status
             # We only skip truly queued items, not those with metadata issues
             metadata_issue = "metadata" in item["status"].lower() or "metadata" in item["error_message"].lower()
-            
+            strike_queued = settings.get("strike_queued", False)
+
             if item["status"] == "queued" and not metadata_issue:
-                # For regular queued items, check how long they've been in strike data
-                if item_id in strike_data and "first_strike_time" in strike_data[item_id]:
-                    first_strike = datetime.fromisoformat(strike_data[item_id]["first_strike_time"].replace('Z', '+00:00'))
-                    if (datetime.utcnow() - first_strike) < timedelta(hours=1):
-                        # Skip if it's been less than 1 hour since first seeing it
-                        swaparr_logger.debug(f"Ignoring recently queued download: {item['name']}")
-                        item_state = "Ignored (Recently Queued)"
-                        SWAPARR_STATS['items_ignored'] += 1
-                        if not settings.get("dry_run", False):
-                            increment_swaparr_stat("ignored", 1)  # Track ignored items in persistent system
-                        continue
-                else:
-                    # Initialize with first strike time for queued items
-                    if item_id not in strike_data:
-                        strike_data[item_id] = {
-                            "strikes": 0,
-                            "name": item["name"],
-                            "first_strike_time": datetime.utcnow().isoformat(),
-                            "last_strike_time": None
-                        }
-                    swaparr_logger.debug(f"Monitoring new queued download: {item['name']}")
-                    item_state = "Monitoring (Queued)"
+                if not strike_queued:
+                    # Default: never strike queued items (mirrors upstream STRIKE_QUEUED=false)
+                    swaparr_logger.debug(f"Ignoring queued download (strike_queued disabled): {item['name']}")
+                    item_state = "Ignored (Queued)"
+                    SWAPARR_STATS['items_ignored'] += 1
+                    if not settings.get("dry_run", False):
+                        increment_swaparr_stat("ignored", 1)
                     continue
+                else:
+                    # strike_queued=true: allow striking after a 1-hour grace period
+                    if item_id in strike_data and "first_strike_time" in strike_data[item_id]:
+                        first_strike = datetime.fromisoformat(strike_data[item_id]["first_strike_time"].replace('Z', '+00:00'))
+                        if (datetime.utcnow() - first_strike) < timedelta(hours=1):
+                            swaparr_logger.debug(f"Ignoring recently queued download: {item['name']}")
+                            item_state = "Ignored (Recently Queued)"
+                            SWAPARR_STATS['items_ignored'] += 1
+                            if not settings.get("dry_run", False):
+                                increment_swaparr_stat("ignored", 1)
+                            continue
+                    else:
+                        if item_id not in strike_data:
+                            strike_data[item_id] = {
+                                "strikes": 0,
+                                "name": item["name"],
+                                "first_strike_time": datetime.utcnow().isoformat(),
+                                "last_strike_time": None
+                            }
+                        swaparr_logger.debug(f"Monitoring new queued download: {item['name']}")
+                        item_state = "Monitoring (Queued)"
+                        continue
             
             # Check for malicious files FIRST - immediate removal without strikes
             is_malicious, malicious_reason = check_for_malicious_files(item, settings)
@@ -903,7 +929,8 @@ def process_stalled_downloads(app_name, instance_name, instance_data, settings):
             except (TypeError, ValueError):
                 sizeleft = 0
             is_completed = sizeleft == 0
-            remove_completed_stalled = settings.get("remove_completed_stalled", True)
+            # Per-instance setting overrides global; global defaults to True
+            remove_completed_stalled = instance_data.get("swaparr_remove_completed_stalled", settings.get("remove_completed_stalled", True))
             if is_completed and not remove_completed_stalled:
                 # Even when remove_completed_stalled is off, handle quality-match failures
                 is_quality_failure, quality_failure_reason = check_quality_match_failure(item)
