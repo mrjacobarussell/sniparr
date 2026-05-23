@@ -71,8 +71,6 @@ def get_configured_instances(quiet=False):
                     "command_wait_delay": instance.get("command_wait_delay", 1),
                     "command_wait_attempts": instance.get("command_wait_attempts", 600),
                     "max_download_queue_size": instance.get("max_download_queue_size", -1),
-                    "max_seed_queue_size": instance.get("max_seed_queue_size", -1),
-                    "seed_check_torrent_client": instance.get("seed_check_torrent_client"),
                     "tag_processed_items": instance.get("tag_processed_items", False),
                     "tag_enable_missing": instance.get("tag_enable_missing", False),
                     "tag_enable_upgrade": instance.get("tag_enable_upgrade", False),
