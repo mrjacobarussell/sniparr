@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+
+  <!-- Scope body -->
+  <circle cx="128" cy="128" r="128" fill="#0d1117"/>
+
+  <!-- Outer scope ring -->
+  <circle cx="128" cy="128" r="118" fill="none" stroke="#38bdf8" stroke-width="5"/>
+
+  <!-- Mid accent ring -->
+  <circle cx="128" cy="128" r="72" fill="none" stroke="#38bdf8" stroke-width="1.5" opacity="0.45"/>
+
+  <!-- "aRR" text — shifted left 10%, down 10%, rotated -25° around its own center -->
+  <text
+    x="102"
+    y="154"
+    text-anchor="middle"
+    dominant-baseline="central"
+    font-family="'Courier New', Courier, monospace"
+    font-weight="900"
+    fill="#f0f6fc"
+    transform="rotate(-25, 102, 154)">
+    <tspan font-size="38" fill="#64748b">a</tspan><tspan font-size="62" letter-spacing="-1">RR</tspan>
+  </text>
+
+  <!-- Crosshair vertical — gap at center for the dot -->
+  <line x1="128" y1="10"  x2="128" y2="121" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="128" y1="135" x2="128" y2="246" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Crosshair horizontal — gap at center for the dot -->
+  <line x1="10"  y1="128" x2="121" y2="128" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+  <line x1="135" y1="128" x2="246" y2="128" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+
+  <!-- Mil-dot style tick marks at inner ring intersections -->
+  <circle cx="128" cy="56"  r="2.5" fill="#38bdf8" opacity="0.7"/>
+  <circle cx="128" cy="200" r="2.5" fill="#38bdf8" opacity="0.7"/>
+  <circle cx="56"  cy="128" r="2.5" fill="#38bdf8" opacity="0.7"/>
+  <circle cx="200" cy="128" r="2.5" fill="#38bdf8" opacity="0.7"/>
+
+  <!-- Center aiming dot -->
+  <circle cx="128" cy="128" r="5.5" fill="#f43f5e"/>
+
+</svg>

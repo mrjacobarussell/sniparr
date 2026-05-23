@@ -1,0 +1,12 @@
+/* ═══════════════════════════════════════════════════════════════════
+   System Section — Panel visibility controlled by sidebar sub-navigation
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── Tab panel defaults (switched via sidebar sub-nav) ───────────── */
+.system-tab-panel {
+    display: none;
+}
+
+.system-tab-panel.active {
+    display: block;
+}

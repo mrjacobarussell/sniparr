@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Sniparr — Login</title>
+    <link rel="preload" href="./static/logo/sniparr.svg" as="image" fetchpriority="high">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha384-nRgPTkuX86pH8yjPJUAFuASXQSSl2/bBUiNV47vSYpKFxHJhbcrGnmlYpYJMeD7a" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="icon" href="./static/logo/sniparr.svg?v=2" type="image/svg+xml">
+    <link rel="icon" href="./static/logo/16.png?v=2" type="image/png" sizes="16x16">
+    <link rel="icon" href="./static/logo/32.png?v=2" type="image/png" sizes="32x32">
+    <link rel="stylesheet" href="./static/css/login.css">
+</head>
+<body class="login-page">
+
+    <!-- Security advisory banner -->
+    <div id="securityBanner" class="security-banner" role="alertdialog" aria-modal="true" aria-labelledby="securityBannerTitle">
+        <div class="security-banner-content">
+            <div class="security-banner-icon">
+                <i class="fas fa-shield-alt"></i>
+            </div>
+            <div class="security-banner-body">
+                <h2 id="securityBannerTitle">Security Advisory</h2>
+                <p>
+                    <strong>Never expose Sniparr — or any Docker container — directly to the internet.</strong>
+                    Always access your self-hosted services through a secure private network tunnel
+                    such as <strong>Tailscale</strong>, <strong>WireGuard</strong>, or a hardened
+                    reverse proxy with authentication. Leaving management ports open publicly puts
+                    your entire media stack at risk.
+                </p>
+            </div>
+            <button id="securityBannerDismiss" class="security-banner-dismiss" aria-label="Dismiss">
+                <i class="fas fa-times"></i>
+                <span class="security-banner-countdown" id="securityCountdown">10</span>
+            </button>
+        </div>
+        <div class="security-banner-progress">
+            <div class="security-banner-progress-bar" id="securityProgressBar"></div>
+        </div>
+    </div>
+
+    <!-- Rotating backdrop layers -->
+    <div class="login-backdrop-layer" id="backdropA"></div>
+    <div class="login-backdrop-layer" id="backdropB"></div>
+    <div class="login-backdrop-overlay"></div>
+
+    <div class="login-container">
+        <div class="login-header">
+            <img src="./static/logo/sniparr.svg" alt="Sniparr" class="login-logo">
+            <h1>Sniparr</h1>
+        </div>
+        <div class="login-form">
+            <h2>Log in to your account</h2>
+            <div id="errorMessage" class="error-message"></div>
+            <form action="{{ base_url|default('', true) }}/login" method="POST" id="loginForm">
+                <div class="form-group">
+                    <label for="username">
+                        <i class="fas fa-user"></i>
+                        <span>Username</span>
+                    </label>
+                    <input type="text" id="username" name="username" required autofocus>
+                </div>
+                <div class="form-group">
+                    <label for="password">
+                        <i class="fas fa-lock"></i>
+                        <span>Password</span>
+                    </label>
+                    <input type="password" id="password" name="password" required>
+                    <i class="toggle-password fas fa-eye" id="togglePassword"></i>
+                </div>
+                <!-- 2FA field will be inserted here when needed -->
+                <div id="twoFactorContainer"></div>
+                <div class="form-actions">
+                    <div class="form-check">
+                        <input type="checkbox" id="rememberMe" name="rememberMe">
+                        <label for="rememberMe">Remember me</label>
+                    </div>
+                </div>
+                <button type="submit" class="login-button" id="loginButton">
+                    <i class="fas fa-sign-in-alt"></i> Log In
+                </button>
+                <div class="forgot-password-section">
+                    <a href="#" id="forgotPasswordLink" class="forgot-password-link">
+                        <i class="fas fa-question-circle"></i> Forgot Password?
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Recovery Modal -->
+    <div class="plex-modal" id="recoveryModal" style="display: none;">
+        <div class="plex-modal-content">
+            <div class="plex-modal-header">
+                <div class="plex-logo">
+                    <i class="fas fa-life-ring" style="font-size: 48px; color: #818cf8;"></i>
+                </div>
+                <h2>Account Recovery</h2>
+                <p style="color: #94a3b8; font-size: 0.85rem; margin: 10px 0 0;">Enter your recovery key to reset your password</p>
+            </div>
+
+            <div class="recovery-form">
+                <div class="form-group">
+                    <label for="recoveryKeyInput">
+                        <i class="fas fa-key"></i> Recovery Key
+                    </label>
+                    <input type="text" id="recoveryKeyInput" placeholder="ocean-light-tower-51" style="font-family: 'SF Mono', 'Fira Code', 'Courier New', monospace;">
+                </div>
+
+                <div id="newPasswordSection" style="display: none;">
+                    <div class="form-group">
+                        <label for="newPasswordInput">
+                            <i class="fas fa-lock"></i> New Password
+                        </label>
+                        <input type="password" id="newPasswordInput">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmNewPasswordInput">
+                            <i class="fas fa-lock"></i> Confirm New Password
+                        </label>
+                        <input type="password" id="confirmNewPasswordInput">
+                    </div>
+                </div>
+
+                <button id="verifyRecoveryKeyBtn" class="login-button" style="margin-bottom: 10px;">
+                    <i class="fas fa-check"></i> Verify Recovery Key
+                </button>
+
+                <button id="resetPasswordBtn" class="login-button" style="display: none; background: linear-gradient(135deg, #22c55e, #16a34a);">
+                    <i class="fas fa-save"></i> Reset Password
+                </button>
+            </div>
+
+            <div id="recoveryStatus" style="margin: 14px 0; text-align: center; display: none;"></div>
+
+            <button class="modal-close" id="recoveryModalClose">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Pass base URL configuration to JavaScript -->
+    <script nonce="{{ g.csp_nonce }}">
+        window.SNIPARR_BASE_URL = '{{ base_url|default("", true) }}';
+        window.SNIPARR_BASE_URL = window.SNIPARR_BASE_URL;
+    </script>
+    {% include 'components/scripts.html' %}
+    <script nonce="{{ g.csp_nonce }}">
+        const loginForm = document.getElementById('loginForm');
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const errorMessage = document.getElementById('errorMessage');
+        const togglePassword = document.getElementById('togglePassword');
+        const twoFactorContainer = document.getElementById('twoFactorContainer');
+        let otpInput = null;
+        let twoFactorMode = false;
+
+        // Toggle password visibility
+        togglePassword.addEventListener('click', function() {
+            const type = passwordInput.getAttribute('type') === 'password' ? 'text' : 'password';
+            passwordInput.setAttribute('type', type);
+            this.classList.toggle('fa-eye');
+            this.classList.toggle('fa-eye-slash');
+        });
+
+        loginForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            errorMessage.style.display = 'none';
+            errorMessage.textContent = '';
+
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value;
+
+            if (!username || !password) {
+                showError('Please enter both username and password.');
+                return;
+            }
+
+            if (twoFactorMode && otpInput) {
+                const otpCode = otpInput.value.trim();
+                if (!otpCode) { showError('Please enter your two-factor authentication code.'); return; }
+                if (otpCode.length !== 6 || !/^\d+$/.test(otpCode)) { showError('Two-factor code must be 6 digits.'); return; }
+            }
+
+            const loginButton = document.getElementById('loginButton');
+            const originalText = loginButton.innerHTML;
+            loginButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Logging in...';
+            loginButton.disabled = true;
+
+            const loginData = {
+                username: username,
+                password: password,
+                rememberMe: document.getElementById('rememberMe').checked
+            };
+            if (twoFactorMode && otpInput) {
+                loginData.twoFactorCode = otpInput.value.trim();
+            }
+
+            SniparrUtils.fetchWithTimeout('/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(loginData)
+            })
+            .then(response => response.json().then(data => ({ status: response.status, body: data })))
+            .then(({ status, body }) => {
+                const requires2FA = body.requires_2fa || body.requiresTwoFactor || body.requires2fa || body.requireTwoFactor || false;
+
+                if (status === 200 && body.success) {
+                    window.location.href = body.redirect || './';
+                } else if (status === 401 && requires2FA) {
+                    twoFactorMode = true;
+                    twoFactorContainer.innerHTML = `
+                    <div class="form-group" id="twoFactorGroup">
+                        <label for="twoFactorCode">
+                            <i class="fas fa-shield-alt"></i>
+                            <span>Two-Factor Code</span>
+                        </label>
+                        <input type="text" id="twoFactorCode" name="twoFactorCode"
+                               placeholder="Enter your 6-digit code" maxlength="6"
+                               style="letter-spacing: 4px; text-align: center;">
+                    </div>`;
+                    otpInput = document.getElementById('twoFactorCode');
+                    if (otpInput) {
+                        otpInput.focus();
+                        otpInput.addEventListener('input', function() { this.value = this.value.replace(/[^0-9]/g, ''); });
+                    }
+                    loginButton.innerHTML = originalText;
+                    loginButton.disabled = false;
+                    showError('Please enter your two-factor authentication code.');
+                } else {
+                    showError(body.error || 'Invalid username or password.');
+                    loginButton.innerHTML = originalText;
+                    loginButton.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Login error:', error);
+                showError('An error occurred during login. Please try again.');
+                loginButton.innerHTML = originalText;
+                loginButton.disabled = false;
+            });
+        });
+
+        function showError(message) {
+            errorMessage.textContent = message;
+            errorMessage.style.display = 'block';
+        }
+
+        // Recovery functionality
+        const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+        const recoveryModal = document.getElementById('recoveryModal');
+        const recoveryModalClose = document.getElementById('recoveryModalClose');
+        const verifyRecoveryKeyBtn = document.getElementById('verifyRecoveryKeyBtn');
+        const resetPasswordBtn = document.getElementById('resetPasswordBtn');
+        const recoveryKeyInput = document.getElementById('recoveryKeyInput');
+        const newPasswordInput = document.getElementById('newPasswordInput');
+        const confirmNewPasswordInput = document.getElementById('confirmNewPasswordInput');
+        const newPasswordSection = document.getElementById('newPasswordSection');
+        const recoveryStatus = document.getElementById('recoveryStatus');
+        let verifiedUsername = null;
+
+        forgotPasswordLink.addEventListener('click', function(e) { e.preventDefault(); recoveryModal.style.display = 'block'; recoveryKeyInput.focus(); });
+        recoveryModalClose.addEventListener('click', function() { closeRecoveryModal(); });
+        recoveryModal.addEventListener('click', function(e) { if (e.target === recoveryModal) closeRecoveryModal(); });
+
+        function closeRecoveryModal() { recoveryModal.style.display = 'none'; resetRecoveryForm(); }
+        function resetRecoveryForm() {
+            recoveryKeyInput.value = ''; newPasswordInput.value = ''; confirmNewPasswordInput.value = '';
+            newPasswordSection.style.display = 'none'; verifyRecoveryKeyBtn.style.display = 'block';
+            resetPasswordBtn.style.display = 'none'; recoveryStatus.style.display = 'none'; verifiedUsername = null;
+        }
+
+        verifyRecoveryKeyBtn.addEventListener('click', function() {
+            const recoveryKey = recoveryKeyInput.value.trim();
+            if (!recoveryKey) { showRecoveryStatus('Please enter your recovery key', 'error'); return; }
+            const originalText = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Verifying...'; this.disabled = true;
+
+            SniparrUtils.fetchWithTimeout('./auth/recovery-key/verify', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recovery_key: recoveryKey })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    verifiedUsername = data.username;
+                    showRecoveryStatus('Recovery key verified for user: ' + data.username, 'success');
+                    newPasswordSection.style.display = 'block'; verifyRecoveryKeyBtn.style.display = 'none';
+                    resetPasswordBtn.style.display = 'block'; newPasswordInput.focus();
+                } else { showRecoveryStatus(data.error || 'Invalid recovery key', 'error'); }
+            })
+            .catch(error => { showRecoveryStatus('Error verifying recovery key: ' + error.message, 'error'); })
+            .finally(() => { this.innerHTML = originalText; this.disabled = false; });
+        });
+
+        resetPasswordBtn.addEventListener('click', function() {
+            const newPassword = newPasswordInput.value;
+            const confirmPassword = confirmNewPasswordInput.value;
+            const recoveryKey = recoveryKeyInput.value.trim();
+            if (!newPassword || !confirmPassword) { showRecoveryStatus('Please fill in all password fields', 'error'); return; }
+            if (newPassword !== confirmPassword) { showRecoveryStatus('Passwords do not match', 'error'); return; }
+            if (newPassword.length < 8) { showRecoveryStatus('Password must be at least 8 characters long', 'error'); return; }
+            const originalText = this.innerHTML;
+            this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Resetting...'; this.disabled = true;
+
+            SniparrUtils.fetchWithTimeout('./auth/recovery-key/reset', {
+                method: 'POST', headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ recovery_key: recoveryKey, new_password: newPassword })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) { showRecoveryStatus('Password reset successfully! You can now log in with your new password.', 'success'); setTimeout(() => { closeRecoveryModal(); usernameInput.focus(); }, 3000); }
+                else { showRecoveryStatus(data.error || 'Failed to reset password', 'error'); }
+            })
+            .catch(error => { showRecoveryStatus('Error resetting password: ' + error.message, 'error'); })
+            .finally(() => { this.innerHTML = originalText; this.disabled = false; });
+        });
+
+        function showRecoveryStatus(message, type) {
+            recoveryStatus.textContent = message;
+            recoveryStatus.className = type === 'success' ? 'plex-status success' : 'plex-status error';
+            recoveryStatus.style.display = 'block';
+        }
+
+        // ════════════════════════════════════════════════════════
+        //  Security advisory banner — auto-dismiss after 10 s
+        // ════════════════════════════════════════════════════════
+        (function() {
+            var banner   = document.getElementById('securityBanner');
+            var btn      = document.getElementById('securityBannerDismiss');
+            var countdown = document.getElementById('securityCountdown');
+            var bar      = document.getElementById('securityProgressBar');
+            if (!banner) return;
+
+            var DURATION = 10;
+            var remaining = DURATION;
+            var startTime = null;
+            var rafId = null;
+
+            function dismiss() {
+                cancelAnimationFrame(rafId);
+                banner.classList.add('security-banner-hiding');
+                setTimeout(function() { banner.style.display = 'none'; }, 400);
+            }
+
+            btn.addEventListener('click', dismiss);
+
+            function tick(ts) {
+                if (!startTime) startTime = ts;
+                var elapsed = (ts - startTime) / 1000;
+                var left = Math.max(0, DURATION - elapsed);
+                var pct  = (elapsed / DURATION) * 100;
+
+                countdown.textContent = Math.ceil(left);
+                bar.style.width = Math.min(100, pct) + '%';
+
+                if (left <= 0) { dismiss(); return; }
+                rafId = requestAnimationFrame(tick);
+            }
+
+            rafId = requestAnimationFrame(tick);
+        })();
+
+        // ════════════════════════════════════════════════════════
+        //  Rotating Backdrop — TMDB trending images
+        // ════════════════════════════════════════════════════════
+        (function() {
+            var layerA = document.getElementById('backdropA');
+            var layerB = document.getElementById('backdropB');
+            if (!layerA || !layerB) return;
+
+            var images = [];
+            var preloaded = {};
+            var currentIndex = -1;
+            var activeLayer = 'A';
+            var INTERVAL = 10000;
+            var rotationTimer = null;
+
+            function shuffle(arr) {
+                for (var i = arr.length - 1; i > 0; i--) {
+                    var j = Math.floor(Math.random() * (i + 1));
+                    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+                }
+                return arr;
+            }
+
+            function preload(url) {
+                if (preloaded[url]) return Promise.resolve(url);
+                return new Promise(function(resolve) {
+                    var img = new Image();
+                    img.onload = function() { preloaded[url] = true; resolve(url); };
+                    img.onerror = function() { resolve(null); };
+                    img.src = url;
+                });
+            }
+
+            function preloadAhead(fromIndex, count) {
+                for (var i = 0; i < count; i++) {
+                    var idx = (fromIndex + i) % images.length;
+                    preload(images[idx]);
+                }
+            }
+
+            function showNext() {
+                if (images.length === 0) return;
+                currentIndex = (currentIndex + 1) % images.length;
+                var url = images[currentIndex];
+                var showLayer, hideLayer;
+                if (activeLayer === 'A') { showLayer = layerB; hideLayer = layerA; activeLayer = 'B'; }
+                else { showLayer = layerA; hideLayer = layerB; activeLayer = 'A'; }
+                showLayer.style.backgroundImage = 'url(' + url + ')';
+                void showLayer.offsetWidth;
+                showLayer.classList.add('visible');
+                hideLayer.classList.remove('visible');
+                preloadAhead(currentIndex + 1, 3);
+            }
+
+            function init() {
+                fetch('./api/setup/backdrops')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (!data.success || !data.images || data.images.length === 0) return;
+                        images = shuffle(data.images.slice());
+                        Promise.all([preload(images[0]), preload(images[1] || images[0]), preload(images[2] || images[0])])
+                            .then(function() {
+                                showNext();
+                                rotationTimer = setInterval(showNext, INTERVAL);
+                            });
+                    })
+                    .catch(function() {});
+            }
+
+            if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
+            else init();
+        })();
+    </script>
+</body>
+</html>

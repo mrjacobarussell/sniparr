@@ -1,0 +1,103 @@
+/* ==========================================================================
+   Sniparr Design Tokens
+   Dark-only palette — indigo accent, navy backgrounds
+   ========================================================================== */
+
+:root {
+    /* ── Background Scale ─────────────────────────────────────── */
+    --bg-primary:   #0f172a;   /* slate-900  — page / body        */
+    --bg-secondary: #111827;   /* gray-900   — cards / panels     */
+    --bg-tertiary:  #1e293b;   /* slate-800  — elevated surfaces  */
+    --bg-hover:     #334155;   /* slate-700  — hover states       */
+
+    /* ── Text Scale ───────────────────────────────────────────── */
+    --text-primary:   #f8fafc; /* slate-50   */
+    --text-secondary: #e2e8f0; /* slate-200  */
+    --text-muted:     #94a3b8; /* slate-400  */
+    --text-dim:       #64748b; /* slate-500  */
+
+    /* ── Accent ───────────────────────────────────────────────── */
+    --accent-color:     #6366f1; /* indigo-500 */
+    --accent-hover:     #818cf8; /* indigo-400 */
+    --accent-secondary: #a5b4fc; /* indigo-300 — links, subtle     */
+    --accent-glow:      rgba(99, 102, 241, 0.35);
+
+    /* ── Semantic Status ──────────────────────────────────────── */
+    --success-color: #22c55e;
+    --warning-color: #f59e0b;
+    --error-color:   #ef4444;
+    --info-color:    #6366f1;
+    --debug-color:   #64748b;
+
+    /* ── Borders ──────────────────────────────────────────────── */
+    --border-color:       rgba(71, 85, 105, 0.35);  /* slate-600 @ 35% */
+    --border-color-light: rgba(99, 102, 241, 0.1);  /* indigo tint     */
+
+    /* ── Component Surfaces ───────────────────────────────────── */
+    --sidebar-bg:          rgba(15, 23, 42, 0.98);
+    --sidebar-text:        #e2e8f0;
+    --sidebar-item-hover:  rgba(99, 102, 241, 0.08);
+    --sidebar-item-active: #6366f1;
+    --topbar-bg:           #111827;
+    --card-bg:             rgba(17, 24, 39, 0.65);
+    --switch-bg:           #334155;
+    --switch-active:       #6366f1;
+
+    /* ── Buttons ──────────────────────────────────────────────── */
+    --button-primary-bg:    #6366f1;
+    --button-primary-text:  #ffffff;
+    --button-primary-hover: #818cf8;
+    --button-danger-bg:     #ef4444;
+    --button-danger-hover:  #f87171;
+    --button-success-bg:    #22c55e;
+    --button-success-hover: #4ade80;
+
+    /* ── Status ───────────────────────────────────────────────── */
+    --status-connected:     #22c55e;
+    --status-not-connected: #ef4444;
+
+    /* ── Logs ─────────────────────────────────────────────────── */
+    --log-bg:     #111827;
+    --log-border: rgba(71, 85, 105, 0.35);
+
+    /* ── Page Layout ─────────────────────────────────────────── */
+    --page-gap:         30px;  /* gap on left & right of content */
+    --page-gap-mobile:  15px;
+
+    /* ── Glass Card Surface ──────────────────────────────────── */
+    --glass-bg:         rgba(17, 24, 39, 0.65);
+    --glass-border:     rgba(99, 102, 241, 0.08);
+    --glass-blur:       12px;
+    --glass-shadow:     0 4px 24px rgba(0, 0, 0, 0.2), 0 0 0 1px rgba(99, 102, 241, 0.04);
+
+    /* ── Form Inputs ─────────────────────────────────────────── */
+    --input-bg:         rgba(15, 23, 42, 0.6);
+    --input-border:     rgba(71, 85, 105, 0.4);
+    --input-focus-border: rgba(99, 102, 241, 0.5);
+    --input-focus-glow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+    --input-text:       #e2e8f0;
+    --input-placeholder: #64748b;
+    --input-height:     42px;
+    --input-radius:     8px;
+
+    /* ── Radius Scale ─────────────────────────────────────────── */
+    --radius-sm:  6px;
+    --radius-md:  8px;
+    --radius-lg:  12px;
+    --radius-xl:  16px;
+
+    /* ── Shadow Scale ─────────────────────────────────────────── */
+    --shadow-sm:  0 2px 8px  rgba(15, 23, 42, 0.25);
+    --shadow-md:  0 4px 16px rgba(15, 23, 42, 0.35);
+    --shadow-lg:  0 8px 32px rgba(15, 23, 42, 0.5);
+
+    /* ── Transition ───────────────────────────────────────────── */
+    --transition-fast: 0.15s ease;
+    --transition-base: 0.2s ease;
+    --transition-slow: 0.3s ease;
+}
+
+/* Keep .dark-theme as an alias so existing JS classList.add('dark-theme') still works */
+.dark-theme {
+    /* intentionally empty — :root already holds the dark values */
+}

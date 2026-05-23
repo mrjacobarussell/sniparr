@@ -1,0 +1,143 @@
+<!-- Mobile: Topbar with hamburger — hamburger toggles the desktop sidebar as slide-out overlay -->
+
+<!-- ===== MOBILE TOPBAR ===== -->
+<div id="mobile-topbar" class="mtb">
+    <div class="mtb-inner">
+        <!-- Left: Hamburger + Logo + Title -->
+        <div class="mtb-left">
+            <button class="mtb-hamburger" id="mobileMenuToggle" aria-label="Open menu">
+                <span></span><span></span><span></span>
+            </button>
+            <a href="#home" class="mtb-logo-link">
+                <img src="./static/logo/sniparr.svg" alt="Sniparr" class="mtb-logo" width="28" height="28">
+            </a>
+            <span class="mtb-title" id="mobilePageTitle">Home</span>
+        </div>
+
+        <!-- Right: Stars + Discord + Reddit + Docs + Heart -->
+        <div class="mtb-right">
+            <a href="https://github.com/mrjacobarussell/sniparr" target="_blank" rel="noopener"
+               class="mtb-chip mtb-chip-stars" title="GitHub Stars">
+                <i class="fas fa-star"></i>
+                <span id="mtb-stars">--</span>
+            </a>
+            <a href="https://discord.com/invite/ExSFH64kVn" target="_blank" rel="noopener"
+               class="mtb-icon-btn mtb-discord" title="Join Discord" aria-label="Discord">
+                <i class="fab fa-discord"></i>
+            </a>
+            <a href="https://www.reddit.com/r/sniparr/" target="_blank" rel="noopener"
+               class="mtb-icon-btn mtb-reddit" title="Visit Reddit" aria-label="Reddit">
+                <i class="fab fa-reddit-alien"></i>
+            </a>
+            <a href="https://github.com/mrjacobarussell/sniparr" target="_blank" rel="noopener"
+               class="mtb-icon-btn mtb-docs" title="Documentation" aria-label="Documentation">
+                <i class="fas fa-book-open"></i>
+            </a>
+            <a href="https://buymeacoffee.com/jacobrussell_medic" target="_blank" rel="noopener noreferrer"
+               class="mtb-icon-btn mtb-heart" title="Buy Me a Coffee" aria-label="Donate">
+                <i class="fas fa-heart"></i>
+            </a>
+        </div>
+    </div>
+    <div class="mtb-accent"></div>
+</div>
+
+<!-- Backdrop when desktop sidebar is open on mobile -->
+<div class="mobile-sidebar-backdrop" id="mobileSidebarBackdrop" aria-hidden="true"></div>
+
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    /* ---- Hamburger toggles desktop sidebar as slide-out overlay — no mobile menu, same sidebar ---- */
+    var backdrop;
+
+    function open() {
+        document.body.classList.add('mobile-sidebar-open');
+        if (backdrop) backdrop.setAttribute('aria-hidden', 'false');
+        var sw = document.getElementById('sidebar-wrapper');
+        if (sw) sw.addEventListener('click', onSidebarClick);
+    }
+
+    function onSidebarClick(e) {
+        var link = e.target.closest('a.nav-item');
+        if (!link) return;
+        /* Subcategory (child item): close */
+        if (link.classList.contains('nav-item-sub')) { shut(); return; }
+        /* Parent with submenu in same sidebar: keep open */
+        var next = link.nextElementSibling;
+        if (next && next.classList.contains('nav-sub-group')) {
+            return;
+        }
+        /* Major category: link switches to sidebar with more nav (Media Hunt, Apps, NZB Sniparr): keep open */
+        var href = link.getAttribute('href') || '';
+        var hash = href.indexOf('#') >= 0 ? href.substring(href.indexOf('#')) : '';
+        var categoryHashes = ['#media-snipe-collection', '#apps', '#nzb-snipe-home'];
+        if (hash && categoryHashes.indexOf(hash) >= 0) return;
+        /* Leaf item: close */
+        shut();
+    }
+
+    function shut() {
+        document.body.classList.remove('mobile-sidebar-open');
+        if (backdrop) backdrop.setAttribute('aria-hidden', 'true');
+        var sw = document.getElementById('sidebar-wrapper');
+        if (sw) sw.removeEventListener('click', onSidebarClick);
+    }
+
+    function updateVersionUI() {
+        try {
+            var info = JSON.parse(localStorage.getItem('sniparr-version-info') || '{}');
+            var stars = localStorage.getItem('sniparr-github-stars');
+            var mtbStars = document.getElementById('mtb-stars');
+            if (mtbStars && stars) {
+                try {
+                    var p = JSON.parse(stars);
+                    mtbStars.textContent = (p && p.stars !== undefined) ? Number(p.stars).toLocaleString() : stars;
+                } catch(e) { mtbStars.textContent = stars; }
+            }
+        } catch(e) {}
+    }
+
+    function initMobileNav() {
+        backdrop = document.getElementById('mobileSidebarBackdrop');
+        var toggle = document.getElementById('mobileMenuToggle');
+        if (!toggle) return;
+        toggle.addEventListener('click', function() {
+            if (document.body.classList.contains('mobile-sidebar-open')) shut();
+            else open();
+        });
+        if (backdrop) backdrop.addEventListener('click', shut);
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && document.body.classList.contains('mobile-sidebar-open')) shut();
+        });
+        updateVersionUI();
+        window.addEventListener('storage', function(e) {
+            if (e.key === 'sniparr-version-info' || e.key === 'sniparr-github-stars') updateVersionUI();
+        });
+        setTimeout(updateVersionUI, 3000);
+    }
+
+    /* ---- page title sync ---- */
+    function updateMobilePageTitle(title) {
+        var el = document.getElementById('mobilePageTitle');
+        if (el) el.textContent = title || 'Home';
+    }
+    window.updateMobilePageTitle = updateMobilePageTitle;
+    // Expose version update for external callers
+    window.updateMobileVersionUI = updateVersionUI;
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', function() {
+            initMobileNav();
+            var pt = document.getElementById('currentPageTitle');
+            if (pt) updateMobilePageTitle(pt.textContent);
+            var obs = new MutationObserver(function() {
+                var pt2 = document.getElementById('currentPageTitle');
+                if (pt2) updateMobilePageTitle(pt2.textContent);
+            });
+            if (pt) obs.observe(pt, { childList: true, characterData: true, subtree: true });
+        });
+    } else {
+        initMobileNav();
+    }
+})();
+</script>

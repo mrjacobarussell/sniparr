@@ -1,0 +1,351 @@
+<!-- Single unified sidebar — collapsible accordion groups -->
+<div id="sidebar-wrapper" class="sidebar-wrapper">
+<div class="sidebar" id="sidebar">
+    <div class="logo-container">
+        <a href="https://github.com/mrjacobarussell/sniparr" target="_blank" rel="noopener noreferrer"
+            style="display: flex; align-items: center; text-decoration: none; color: inherit;">
+            <img src="./static/logo/sniparr.svg" alt="Sniparr Logo" class="logo logo-large">
+            <img src="./static/logo/sniparr.svg" alt="Sniparr Logo" class="logo logo-small">
+            <h1>Sniparr</h1>
+        </a>
+    </div>
+
+    <nav class="nav-menu">
+
+        <!-- ── CORE label header ───────────────────────────────── -->
+        <div class="nav-group" id="nav-group-core-label">
+            <div class="nav-group-title">Core</div>
+        </div>
+
+        <!-- ── Home (standalone) ──────────────────────────────── -->
+        <a href="#home" class="nav-item nav-item-home" id="homeNav">
+            <div class="nav-icon-wrapper"><i class="fas fa-home"></i></div>
+            <span>Home</span>
+        </a>
+
+        <!-- ── SYSTEM ─────────────────────────────────────────── -->
+        <div class="nav-group" id="nav-group-system">
+            <div class="nav-group-header" data-group="sidebar-group-system">
+                <i class="fas fa-server nav-group-icon"></i>
+                <span>System</span>
+                <i class="fas fa-chevron-right nav-group-chevron"></i>
+            </div>
+            <div class="nav-group-body collapsed" id="sidebar-group-system">
+                <a href="./#settings" class="nav-item nav-item-sub" id="mainSettingsMainNav">
+                    <div class="nav-icon-wrapper"><i class="fas fa-sliders-h"></i></div>
+                    <span>General</span>
+                </a>
+                <a href="./#sniparr-manager" class="nav-item nav-item-sub" id="mainSystemHuntManagerNav">
+                    <div class="nav-icon-wrapper"><i class="fas fa-crosshairs"></i></div>
+                    <span>Sniparr Manager</span>
+                </a>
+                <a href="./#logs" class="nav-item nav-item-sub" id="mainSystemLogsNav">
+                    <div class="nav-icon-wrapper"><i class="fas fa-list-alt"></i></div>
+                    <span>Logs</span>
+                </a>
+                <a href="./#scheduling" class="nav-item nav-item-sub" id="mainSettingsSchedulingNav">
+                    <div class="nav-icon-wrapper"><i class="fas fa-calendar-alt"></i></div>
+                    <span>Scheduling</span>
+                </a>
+                <a href="./#notifications" class="nav-item nav-item-sub" id="mainSettingsNotificationsNav">
+                    <div class="nav-icon-wrapper"><i class="fas fa-bell"></i></div>
+                    <span>Notifications</span>
+                </a>
+                <a href="./#backup-restore" class="nav-item nav-item-sub" id="mainSettingsBackupRestoreNav">
+                    <div class="nav-icon-wrapper"><i class="fas fa-database"></i></div>
+                    <span>Backup / Restore</span>
+                </a>
+                <a href="./#settings-logs" class="nav-item nav-item-sub" id="mainSettingsLogsNav">
+                    <div class="nav-icon-wrapper"><i class="fas fa-file-alt"></i></div>
+                    <span>Settings Logs</span>
+                </a>
+                <a href="./#user" class="nav-item nav-item-sub" id="mainSettingsUserNav">
+                    <div class="nav-icon-wrapper"><i class="fas fa-user"></i></div>
+                    <span>User</span>
+                </a>
+            </div>
+        </div>
+
+        <!-- ── APPS ───────────────────────────────────────────── -->
+        <div class="nav-group" id="nav-group-apps">
+            <div class="nav-group-header" data-group="sidebar-group-apps">
+                <i class="fas fa-th-large nav-group-icon"></i>
+                <span>Apps</span>
+                <i class="fas fa-chevron-right nav-group-chevron"></i>
+            </div>
+            <div class="nav-group-body collapsed" id="sidebar-group-apps">
+                <a href="./#sonarr" class="nav-item nav-item-sub sonarr-app" id="appsSonarrNav">
+                    <div class="nav-icon-wrapper sonarr-icon">
+                        <img src="./static/images/app-icons/sonarr.png" alt="Sonarr" class="app-icon-img">
+                    </div>
+                    <span>Sonarr</span>
+                </a>
+                <a href="./#radarr" class="nav-item nav-item-sub radarr-app" id="appsRadarrNav">
+                    <div class="nav-icon-wrapper radarr-icon">
+                        <img src="./static/images/app-icons/radarr.png" alt="Radarr" class="app-icon-img">
+                    </div>
+                    <span>Radarr</span>
+                </a>
+                <a href="./#lidarr" class="nav-item nav-item-sub lidarr-app" id="appsLidarrNav">
+                    <div class="nav-icon-wrapper lidarr-icon">
+                        <img src="./static/images/app-icons/lidarr.png" alt="Lidarr" class="app-icon-img">
+                    </div>
+                    <span>Lidarr</span>
+                </a>
+                <a href="./#readarr" class="nav-item nav-item-sub readarr-app" id="appsReadarrNav">
+                    <div class="nav-icon-wrapper readarr-icon">
+                        <img src="./static/images/app-icons/readarr.png" alt="Readarr" class="app-icon-img">
+                    </div>
+                    <span>Readarr</span>
+                </a>
+                <a href="./#whisparr" class="nav-item nav-item-sub whisparr-app" id="appsWhisparrNav">
+                    <div class="nav-icon-wrapper whisparr-icon">
+                        <img src="./static/images/app-icons/whisparr.png" alt="Whisparr V2" class="app-icon-img">
+                    </div>
+                    <span>Whisparr V2</span>
+                </a>
+                <a href="./#eros" class="nav-item nav-item-sub eros-app" id="appsErosNav">
+                    <div class="nav-icon-wrapper eros-icon">
+                        <img src="./static/images/app-icons/eros.png" alt="Whisparr V3" class="app-icon-img">
+                    </div>
+                    <span>Whisparr V3</span>
+                </a>
+                <a href="./#swaparr" class="nav-item nav-item-sub swaparr-app" id="appsSwaparrNav">
+                    <div class="nav-icon-wrapper swaparr-icon">
+                        <i class="fas fa-exchange-alt"></i>
+                    </div>
+                    <span>Swaparr</span>
+                </a>
+            </div>
+        </div>
+
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="sidebar-social-group">
+            <a href="https://discord.com/invite/ExSFH64kVn" target="_blank" rel="noopener" class="sidebar-social-btn discord-btn" title="Join Discord" aria-label="Discord">
+                <i class="fab fa-discord"></i>
+            </a>
+            <a href="https://github.com/mrjacobarussell/sniparr" target="_blank" rel="noopener" class="sidebar-social-btn docs-btn" title="Documentation" aria-label="Documentation">
+                <i class="fas fa-book-open"></i>
+            </a>
+            <a href="https://github.com/mrjacobarussell/sniparr/issues" target="_blank" rel="noopener" class="sidebar-social-btn issues-btn" title="Report a Bug" aria-label="Report a Bug">
+                <i class="fas fa-bug"></i>
+            </a>
+        </div>
+        <div class="sidebar-footer-divider"></div>
+        <div class="sidebar-footer-info">
+            <a href="https://github.com/mrjacobarussell/sniparr/releases" target="_blank" rel="noopener" class="sidebar-footer-version-link" id="sidebar-footer-version-link" title="View releases">
+                <span class="sidebar-footer-version" id="sidebar-footer-version"></span>
+            </a>
+            <a href="https://github.com/mrjacobarussell/sniparr/releases" target="_blank" rel="noopener" class="sidebar-footer-upgrade" id="sidebar-footer-upgrade" style="display:none;" title="Update available">
+                <i class="fas fa-arrow-up"></i>
+                <span id="sidebar-footer-upgrade-version"></span>
+            </a>
+            <span class="sidebar-footer-sep">&middot;</span>
+            <a href="https://github.com/mrjacobarussell/sniparr" target="_blank" rel="noopener" class="sidebar-footer-dev">MrJacobarussell</a>
+        </div>
+    </div>
+</div>
+</div><!-- /#sidebar-wrapper -->
+
+<script nonce="{{ g.csp_nonce }}">
+/* ═══════════════════════════════════════════════════════════════
+   Unified Sidebar — accordion groups + active-item highlighting
+   ═══════════════════════════════════════════════════════════════ */
+
+// ── All collapsible group body IDs ──
+var ALL_GROUP_IDS = [
+    'sidebar-group-apps',
+    'sidebar-group-system'
+];
+
+var ALL_SUB_GROUP_IDS = [];
+
+// ── Expand / collapse helpers ────────────────────────────────
+function expandGroup(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.remove('collapsed');
+    // Rotate chevron
+    var header = el.previousElementSibling;
+    if (header) header.classList.add('expanded');
+}
+
+function collapseGroup(id) {
+    var el = document.getElementById(id);
+    if (!el) return;
+    el.classList.add('collapsed');
+    var header = el.previousElementSibling;
+    if (header) header.classList.remove('expanded');
+}
+
+function collapseAllGroups() {
+    ALL_GROUP_IDS.forEach(collapseGroup);
+}
+
+function expandSub(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.add('expanded');
+}
+
+function collapseSub(id) {
+    var el = document.getElementById(id);
+    if (el) el.classList.remove('expanded');
+}
+
+function collapseAllSubs() {
+    ALL_SUB_GROUP_IDS.forEach(collapseSub);
+}
+
+// Accordion: expand one group, collapse the rest
+function expandSidebarGroup(groupId) {
+    ALL_GROUP_IDS.forEach(function(id) {
+        if (id === groupId) expandGroup(id);
+        else collapseGroup(id);
+    });
+}
+
+// ── Click handlers on group headers ──────────────────────────
+var GROUP_DEFAULT_HASH = {};
+
+document.addEventListener('click', function(e) {
+    var header = e.target.closest('.nav-group-header');
+    if (!header) return;
+    e.preventDefault();
+    var groupId = header.getAttribute('data-group');
+    var body = document.getElementById(groupId);
+    if (!body) return;
+    var isCollapsed = body.classList.contains('collapsed');
+    if (isCollapsed) {
+        expandSidebarGroup(groupId);
+        // If this group has a default page, navigate to it
+        var defaultHash = GROUP_DEFAULT_HASH[groupId];
+        if (defaultHash) {
+            window.location.hash = defaultHash;
+        }
+    } else {
+        collapseGroup(groupId);
+    }
+});
+
+// ── setActiveNavItem: highlight nav + expand correct group ───
+function setActiveNavItem() {
+    // Clear all active states
+    document.querySelectorAll('#sidebar .nav-item').forEach(function(item) {
+        item.classList.remove('active');
+    });
+
+    var h = window.location.hash || '#home';
+
+    var selector = null;
+    var group = null;
+
+    // Home
+    if (h === '#home') { selector = '#homeNav'; group = null; }
+
+    // ── Apps ──────────────────────────────────────
+    else if (h === '#apps' || h === '#sonarr' || h === '#instance-editor') { selector = '#appsSonarrNav'; group = 'sidebar-group-apps'; }
+    else if (h === '#radarr') { selector = '#appsRadarrNav'; group = 'sidebar-group-apps'; }
+    else if (h === '#lidarr') { selector = '#appsLidarrNav'; group = 'sidebar-group-apps'; }
+    else if (h === '#readarr') { selector = '#appsReadarrNav'; group = 'sidebar-group-apps'; }
+    else if (h === '#whisparr') { selector = '#appsWhisparrNav'; group = 'sidebar-group-apps'; }
+    else if (h === '#eros') { selector = '#appsErosNav'; group = 'sidebar-group-apps'; }
+
+    else if (h === '#swaparr') { selector = '#appsSwaparrNav'; group = 'sidebar-group-apps'; }
+
+    // ── System (includes settings) ─────────────────
+    else if (h === '#system' || h === '#sniparr-manager') { selector = '#mainSystemHuntManagerNav'; group = 'sidebar-group-system'; }
+    else if (h === '#logs') { selector = '#mainSystemLogsNav'; group = 'sidebar-group-system'; }
+    else if (h === '#settings') { selector = '#mainSettingsMainNav'; group = 'sidebar-group-system'; }
+    else if (h === '#scheduling') { selector = '#mainSettingsSchedulingNav'; group = 'sidebar-group-system'; }
+    else if (h === '#notifications') { selector = '#mainSettingsNotificationsNav'; group = 'sidebar-group-system'; }
+    else if (h === '#backup-restore') { selector = '#mainSettingsBackupRestoreNav'; group = 'sidebar-group-system'; }
+    else if (h === '#settings-logs') { selector = '#mainSettingsLogsNav'; group = 'sidebar-group-system'; }
+    else if (h === '#user') { selector = '#mainSettingsUserNav'; group = 'sidebar-group-system'; }
+
+    // Fallback
+    else { selector = '#homeNav'; group = null; }
+
+    // Expand the correct group (accordion)
+    // When no group owns this hash (e.g. #home), leave groups as-is rather than
+    // collapsing everything — collapsing made the sidebar appear to disappear.
+    if (group) { expandSidebarGroup(group); }
+
+    // Highlight active item
+    if (selector) {
+        var activeItem = document.querySelector(selector);
+        if (activeItem) activeItem.classList.add('active');
+    }
+}
+
+// ── Feature flags: hide/show sidebar groups ──────────────────
+(function() {
+    function applyFeatureFlags() {
+        fetch('./api/settings/feature-flags', { cache: 'no-store' })
+            .then(function(r) { return r.json(); })
+            .then(function(flags) {
+                var appsGroup = document.getElementById('nav-group-apps');
+                var hideApps = flags.enable_third_party_apps === false;
+                if (appsGroup) appsGroup.style.display = hideApps ? 'none' : '';
+            })
+            .catch(function() { /* keep defaults visible on error */ });
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', applyFeatureFlags);
+    } else {
+        applyFeatureFlags();
+    }
+    window.applyFeatureFlags = applyFeatureFlags;
+})();
+
+// ── Sidebar footer version + upgrade indicator ───────────────
+(function() {
+    function updateSidebarVersion() {
+        var verEl = document.getElementById('sidebar-footer-version');
+        var upgradeEl = document.getElementById('sidebar-footer-upgrade');
+        var upgradeVerEl = document.getElementById('sidebar-footer-upgrade-version');
+        if (!verEl) return;
+        try {
+            var info = localStorage.getItem('sniparr-version-info');
+            if (info) {
+                var parsed = JSON.parse(info);
+                if (parsed.currentVersion) {
+                    verEl.textContent = 'v' + parsed.currentVersion;
+                    // Show upgrade indicator if latest differs from current
+                    if (upgradeEl && upgradeVerEl && parsed.latestVersion &&
+                        parsed.latestVersion !== parsed.currentVersion) {
+                        upgradeVerEl.textContent = parsed.latestVersion;
+                        upgradeEl.style.display = '';
+                        upgradeEl.closest('.sidebar-footer-info')
+                            && upgradeEl.setAttribute('title', 'Update available: ' + parsed.latestVersion);
+                    } else if (upgradeEl) {
+                        upgradeEl.style.display = 'none';
+                    }
+                    return;
+                }
+            }
+        } catch(e) {}
+        verEl.textContent = '';
+        if (upgradeEl) upgradeEl.style.display = 'none';
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', updateSidebarVersion);
+    } else {
+        updateSidebarVersion();
+    }
+    window.addEventListener('storage', function(e) {
+        if (e.key === 'sniparr-version-info') updateSidebarVersion();
+    });
+    // Also update after a short delay to catch late localStorage writes
+    setTimeout(updateSidebarVersion, 2000);
+})();
+
+// ── Init ─────────────────────────────────────────────────────
+window.addEventListener('hashchange', setActiveNavItem);
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setActiveNavItem);
+} else {
+    setActiveNavItem();
+}
+</script>

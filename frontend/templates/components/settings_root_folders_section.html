@@ -1,0 +1,502 @@
+<section id="settingsRootFoldersSection" class="content-section" style="display: none;">
+    <div id="rootFoldersManagementContainer" class="app-content-panel">
+        <!-- Continue to Setup Guide banner (shown when wizard incomplete) -->
+        <div id="root-folders-setup-wizard-continue-banner" class="setup-wizard-continue-banner" style="display: none; margin-bottom: 20px;">
+            <i class="fas fa-arrow-right"></i>
+            <span>Done adding root folders? Continue to the next step in the Setup Guide.</span>
+            <button type="button" class="setup-wizard-continue-btn" data-wizard-nav="media-snipe-collection">
+                <i class="fas fa-forward"></i> Continue to Setup Guide
+            </button>
+        </div>
+
+        <div id="settings-root-folders-content-wrapper">
+        <!-- Instance selector callout (shown during setup to emphasize per-instance config) -->
+        <div id="root-folders-instance-setup-callout" class="instance-setup-callout" style="display: none; margin-bottom: 16px;">
+            <i class="fas fa-cube" aria-hidden="true"></i>
+            <div>
+                <strong>Select which instance you're configuring.</strong> Root folders are per-instance — you must add folders for <strong>each</strong> Movie Snipe and TV Snipe instance. Use the dropdown below to switch between instances.
+            </div>
+        </div>
+        <div class="media-snipe-settings-instance-bar root-folders-instance-bar" style="margin-bottom: 16px;">
+            <label for="settings-root-folders-instance-select" class="instance-selector-label instance-selector-label-emphasis">Instance</label>
+            <select id="settings-root-folders-instance-select" class="control-select" aria-label="Instance">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+        <div class="settings-group root-folders-settings-group">
+            <h3>Root Folders</h3>
+            <p class="root-folders-help"><strong>Root folders are critical.</strong> They tell Sniparr where your media files live. Each Movie Snipe and TV Snipe instance has its own root folders — you must configure them for <strong>all instances</strong> you use. Use the dropdown above to switch between instances and add root folders for each. (For Docker, use the path inside the container, e.g. <code>/movies</code>.)</p>
+            <div class="instance-card-grid" id="root-folders-grid">
+                <div class="add-instance-card add-root-folder-card" id="root-folders-add-card" data-app-type="root-folder">
+                    <div class="add-icon"><i class="fas fa-plus-circle"></i></div>
+                    <div class="add-text">Add Root Folder</div>
+                </div>
+            </div>
+        </div>
+        <!-- Instance status checklist — below Root Folders, always visible to help users track per-instance config -->
+        <div id="root-folders-instance-status-area" class="settings-group root-folders-settings-group root-folders-instance-status-area">
+            <h3>Status by instance</h3>
+            <div id="root-folders-instance-status-grid" class="root-folders-instance-status-grid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+        </div>
+    </div>
+
+    <!-- Add Root Folder modal (same popup style as Add Profile) -->
+    <div id="root-folder-add-modal" class="root-folder-add-modal" style="display: none;">
+        <div class="root-folder-add-modal-backdrop" id="root-folder-add-modal-backdrop"></div>
+        <div class="root-folder-add-modal-content">
+            <div class="root-folder-add-modal-header">
+                <button type="button" class="root-folder-add-modal-close" id="root-folder-add-modal-close" aria-label="Close">
+                    <i class="fas fa-times"></i>
+                </button>
+                <h2 class="root-folder-add-modal-title">Add Root Folder</h2>
+                <p class="root-folder-add-modal-subtitle">Enter or browse to a folder path. Use Test to confirm write/read permissions.</p>
+            </div>
+            <div class="root-folder-add-modal-body">
+                <label for="root-folder-add-path">Path</label>
+                <div class="root-folder-add-path-row">
+                    <input type="text" id="root-folder-add-path" class="root-folder-add-path-input" placeholder="e.g. /media or /movies" autocomplete="off" />
+                    <button type="button" class="btn-root-folders-browse-in-modal" id="root-folder-add-browse-btn"><i class="fas fa-folder-open"></i> Browse</button>
+                    <button type="button" class="btn-root-folders-test-in-modal" id="root-folder-add-test-btn"><i class="fas fa-vial"></i> Test</button>
+                </div>
+            </div>
+            <div class="root-folder-add-modal-actions">
+                <button type="button" class="btn-card root-folder-add-modal-cancel" id="root-folder-add-modal-cancel">Cancel</button>
+                <button type="button" class="btn-card root-folder-add-modal-save" id="root-folder-add-modal-save"><i class="fas fa-plus"></i> Add</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- File Browser modal (unchanged; opened from Add modal when clicking Browse) -->
+    <div id="root-folders-browse-modal" class="root-folders-browse-modal" style="display: none;">
+        <div class="root-folders-browse-backdrop" id="root-folders-browse-backdrop"></div>
+        <div class="root-folders-browse-content">
+            <div class="root-folders-browse-header">
+                <h2 class="root-folders-browse-title">File Browser</h2>
+                <div class="root-folders-browse-header-actions">
+                    <button type="button" class="btn-root-folders-browse-new-folder" id="root-folders-browse-new-folder" title="Create new folder">
+                        <i class="fas fa-folder-plus"></i> New Folder
+                    </button>
+                    <button type="button" class="root-folders-browse-close" id="root-folders-browse-close" aria-label="Close"><i class="fas fa-times"></i></button>
+                </div>
+            </div>
+            <div class="root-folders-browse-body">
+                <label for="root-folders-browse-path-input">Start typing or select a path below</label>
+                <input type="text" id="root-folders-browse-path-input" class="root-folders-browse-path-input" placeholder="/" />
+                <div class="root-folders-browse-up-row">
+                    <button type="button" class="btn-root-folders-browse-up" id="root-folders-browse-up" title="Go to parent directory">
+                        <i class="fas fa-arrow-up"></i> Go Back
+                    </button>
+                </div>
+                <!-- Inline new-folder row (hidden by default) -->
+                <div id="root-folders-browse-new-folder-row" class="root-folders-browse-new-folder-row" style="display: none;">
+                    <i class="fas fa-folder-plus"></i>
+                    <input type="text" id="root-folders-browse-new-folder-input" class="root-folders-browse-inline-input" placeholder="Folder name" autocomplete="off" />
+                    <button type="button" class="root-folders-browse-inline-ok" id="root-folders-browse-new-folder-confirm"><i class="fas fa-check"></i></button>
+                    <button type="button" class="root-folders-browse-inline-cancel" id="root-folders-browse-new-folder-cancel"><i class="fas fa-times"></i></button>
+                </div>
+                <!-- Inline delete confirm row (hidden by default) -->
+                <div id="root-folders-browse-delete-confirm-row" class="root-folders-browse-delete-confirm-row" style="display: none;">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <span id="root-folders-browse-delete-name"></span>
+                    <span class="root-folders-browse-delete-hint">Must be empty to delete.</span>
+                    <button type="button" class="root-folders-browse-inline-danger" id="root-folders-browse-delete-yes"><i class="fas fa-trash"></i> Delete</button>
+                    <button type="button" class="root-folders-browse-inline-cancel" id="root-folders-browse-delete-no"><i class="fas fa-times"></i></button>
+                </div>
+                <div id="root-folders-browse-list" class="root-folders-browse-list"></div>
+            </div>
+            <div class="root-folders-browse-actions">
+                <button type="button" class="btn-root-folders-browse-cancel" id="root-folders-browse-cancel">Cancel</button>
+                <button type="button" class="btn-root-folders-browse-ok" id="root-folders-browse-ok">Ok</button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<style>
+    #settingsRootFoldersSection {
+        width: 100%;
+        min-height: 100vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+    }
+    #settingsRootFoldersSection.active {
+        display: block !important;
+    }
+    #rootFoldersManagementContainer {
+        width: 100%;
+        padding: 20px;
+        margin: 0;
+        background-color: transparent;
+        box-shadow: none;
+        border: none;
+    }
+    .root-folders-settings-group {
+        background: rgba(15, 23, 42, 0.4);
+        border: 1px solid rgba(148, 163, 184, 0.08);
+        border-radius: 12px;
+        padding: 24px;
+        margin: 12px 0 20px 0;
+    }
+    .root-folders-settings-group h3 {
+        margin: 0 0 12px 0;
+        padding: 0 0 10px 0;
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #f1f5f9;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+        background: none;
+        box-shadow: none;
+        font-family: inherit;
+    }
+    .root-folders-help {
+        margin: 0 0 20px 0;
+        color: #94a3b8;
+        font-size: 0.95rem;
+    }
+    .root-folders-help code {
+        background: rgba(0,0,0,0.3);
+        padding: 2px 6px;
+        border-radius: 4px;
+    }
+    /* Card grid (Profiles-style) */
+    #root-folders-grid {
+        grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+        gap: 14px;
+        margin-bottom: 20px;
+    }
+    #root-folders-grid .root-folder-card {
+        padding: 14px 16px;
+        border-radius: 10px;
+        display: flex;
+        flex-direction: column;
+        height: 100%;
+        min-height: 140px;
+        background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+        border: 1px solid rgba(148, 163, 184, 0.1);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    #root-folders-grid .root-folder-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        border-color: rgba(99, 102, 241, 0.3);
+    }
+    #root-folders-grid .root-folder-card.default-root-folder {
+        border-left: 4px solid #6366f1;
+    }
+    #root-folders-grid .root-folder-card-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 10px;
+    }
+    #root-folders-grid .root-folder-card-path {
+        flex: 1;
+        min-width: 0;
+        font-family: monospace;
+        font-size: 0.95rem;
+        font-weight: 600;
+        color: #f8fafc;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        word-break: break-all;
+    }
+    #root-folders-grid .root-folder-default-badge {
+        font-size: 0.6rem;
+        padding: 2px 6px;
+        background: #4f46e5;
+        color: white;
+        border-radius: 12px;
+        text-transform: uppercase;
+        font-weight: 700;
+        letter-spacing: 0.5px;
+        flex-shrink: 0;
+        font-family: inherit;
+    }
+    #root-folders-grid .root-folder-card-body {
+        margin-bottom: 12px;
+        flex: 1;
+        min-height: 0;
+        color: #94a3b8;
+        font-size: 0.85rem;
+    }
+    #root-folders-grid .root-folder-card-footer {
+        display: flex;
+        gap: 6px;
+        margin-top: 0;
+    }
+    #root-folders-grid .root-folder-card .btn-card {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+    }
+    #root-folders-grid .add-root-folder-card {
+        min-height: 140px;
+    }
+    /* Add Root Folder modal (same style as Add Profile) */
+    .root-folder-add-modal {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        z-index: 1000;
+        display: none;
+        align-items: center;
+        justify-content: center;
+    }
+    .root-folder-add-modal[style*="display: flex"] { display: flex !important; }
+    body.root-folder-add-modal-open { overflow: hidden; }
+    body.root-folder-add-modal-open .app-container { filter: blur(10px); }
+    .root-folder-add-modal-backdrop {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background: rgba(0, 0, 0, 0.5);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        z-index: 1000;
+    }
+    .root-folder-add-modal-content {
+        position: relative;
+        z-index: 1001;
+        background: rgba(15, 23, 42, 0.98);
+        border: 2px solid rgba(99, 102, 241, 0.4);
+        border-radius: 12px;
+        max-width: 480px;
+        width: 90%;
+        box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+        overflow: hidden;
+    }
+    .root-folder-add-modal-header {
+        position: relative;
+        padding: 20px 24px 12px;
+        background: linear-gradient(135deg, #1e293b 0%, #334155 50%, #0f172a 100%);
+    }
+    .root-folder-add-modal-close {
+        position: absolute;
+        top: 12px; right: 12px;
+        background: transparent;
+        border: none;
+        color: #94a3b8;
+        font-size: 1.2rem;
+        cursor: pointer;
+        padding: 4px;
+    }
+    .root-folder-add-modal-close:hover { color: #f8fafc; }
+    .root-folder-add-modal-title {
+        margin: 0 0 4px 0;
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #f8fafc;
+    }
+    .root-folder-add-modal-subtitle {
+        margin: 0;
+        font-size: 0.9rem;
+        color: #94a3b8;
+    }
+    .root-folder-add-modal-body {
+        padding: 20px 24px;
+    }
+    .root-folder-add-modal-body label {
+        display: block;
+        margin-bottom: 8px;
+        font-size: 0.9rem;
+        color: #cbd5e1;
+    }
+    .root-folder-add-path-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 10px;
+        align-items: center;
+    }
+    .root-folder-add-path-input {
+        flex: 1;
+        min-width: 200px;
+        padding: 10px 12px;
+        font-size: 1rem;
+        color: #f8fafc;
+        background: rgba(15, 23, 42, 0.8);
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 8px;
+        font-family: monospace;
+        box-sizing: border-box;
+    }
+    .root-folder-add-path-input:focus {
+        outline: none;
+        border-color: #6366f1;
+    }
+    .btn-root-folders-browse-in-modal,
+    .btn-root-folders-test-in-modal {
+        padding: 10px 16px;
+        border-radius: 8px;
+        border: 1px solid rgba(148, 163, 184, 0.3);
+        background: rgba(148, 163, 184, 0.2);
+        color: #e2e8f0;
+        font-weight: 600;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .btn-root-folders-browse-in-modal:hover,
+    .btn-root-folders-test-in-modal:hover {
+        background: rgba(148, 163, 184, 0.3);
+    }
+    .root-folder-add-modal-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding: 16px 24px 20px;
+        border-top: 1px solid rgba(148, 163, 184, 0.1);
+    }
+    /* File Browser modal */
+    .root-folders-browse-modal {
+        position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 1100;
+        display: none; align-items: center; justify-content: center;
+    }
+    .root-folders-browse-modal[style*="display: flex"] { display: flex !important; }
+    .root-folders-browse-backdrop {
+        position: fixed; inset: 0;
+        background: rgba(0,0,0,0.5);
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        z-index: 1100;
+    }
+    .root-folders-browse-content {
+        position: relative; z-index: 1101;
+        background: rgba(15, 23, 42, 0.98);
+        border: 2px solid rgba(148, 163, 184, 0.3);
+        border-radius: 12px;
+        min-width: 400px; max-width: 90vw; max-height: 80vh;
+        display: flex; flex-direction: column; overflow: hidden;
+    }
+    .root-folders-browse-header {
+        display: flex; align-items: center; justify-content: space-between;
+        padding: 16px 20px; border-bottom: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .root-folders-browse-title { margin: 0; font-size: 1.1rem; color: #f8fafc; }
+    .root-folders-browse-header-actions { display: flex; align-items: center; gap: 10px; }
+    .btn-root-folders-browse-new-folder {
+        display: inline-flex; align-items: center; gap: 6px;
+        padding: 8px 14px; font-size: 0.85rem;
+        background: rgba(99, 102, 241, 0.2); border: 1px solid rgba(99, 102, 241, 0.4);
+        color: #a5b4fc; border-radius: 8px; cursor: pointer; font-weight: 500;
+    }
+    .btn-root-folders-browse-new-folder:hover {
+        background: rgba(99, 102, 241, 0.3); border-color: rgba(99, 102, 241, 0.5);
+    }
+    .root-folders-browse-close {
+        background: none; border: none; color: #94a3b8; cursor: pointer; padding: 8px;
+    }
+    .root-folders-browse-body {
+        padding: 16px 20px; overflow-y: auto; flex: 1;
+    }
+    .root-folders-browse-body label {
+        display: block; margin-bottom: 8px; color: #94a3b8; font-size: 0.9rem;
+    }
+    .root-folders-browse-path-input {
+        width: 100%; padding: 10px 12px; margin-bottom: 12px;
+        background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 8px; color: #f8fafc; font-family: monospace; box-sizing: border-box;
+    }
+    .root-folders-browse-up-row { margin-bottom: 12px; }
+    .btn-root-folders-browse-up {
+        display: inline-flex; align-items: center; gap: 8px;
+        padding: 10px 16px;
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: #fff;
+        border: 1px solid rgba(99, 102, 241, 0.5);
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .btn-root-folders-browse-up:hover {
+        filter: brightness(1.1);
+    }
+    .btn-root-folders-browse-up:disabled {
+        opacity: 0.5; cursor: not-allowed;
+    }
+    .root-folders-browse-list {
+        max-height: 280px; overflow-y: auto;
+        border: 1px solid rgba(148, 163, 184, 0.2); border-radius: 8px;
+        background: rgba(15, 23, 42, 0.5);
+    }
+    .root-folders-browse-item {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px;
+        border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+        color: #e2e8f0;
+    }
+    .root-folders-browse-item-main {
+        display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; cursor: pointer;
+    }
+    .root-folders-browse-item:hover { background: rgba(148, 163, 184, 0.15); }
+    .root-folders-browse-item-main i { color: #94a3b8; flex-shrink: 0; }
+    .root-folders-browse-item-path { font-family: monospace; font-size: 0.9rem; word-break: break-all; }
+    .root-folders-browse-item-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0.7; }
+    .root-folders-browse-item:hover .root-folders-browse-item-actions { opacity: 1; }
+    .root-folders-browse-item-btn {
+        padding: 4px 8px; background: transparent; border: none; color: #94a3b8;
+        cursor: pointer; border-radius: 4px; font-size: 0.8rem;
+    }
+    .root-folders-browse-item-btn:hover { background: rgba(148, 163, 184, 0.2); color: #e2e8f0; }
+    .root-folders-browse-item-btn[data-action="delete"]:hover { color: #f87171; }
+    /* Inline new-folder row */
+    .root-folders-browse-new-folder-row,
+    .root-folders-browse-delete-confirm-row {
+        display: flex; align-items: center; gap: 8px; padding: 10px 14px; margin-bottom: 8px;
+        background: rgba(99, 102, 241, 0.08); border: 1px solid rgba(99, 102, 241, 0.3);
+        border-radius: 8px;
+    }
+    .root-folders-browse-new-folder-row i { color: #818cf8; font-size: 1rem; flex-shrink: 0; }
+    .root-folders-browse-delete-confirm-row {
+        background: rgba(239, 68, 68, 0.08); border-color: rgba(239, 68, 68, 0.3);
+    }
+    .root-folders-browse-delete-confirm-row i { color: #f87171; font-size: 1rem; flex-shrink: 0; }
+    .root-folders-browse-delete-confirm-row span { color: #f1f5f9; font-size: 0.9rem; font-weight: 500; }
+    .root-folders-browse-delete-hint { color: #94a3b8 !important; font-weight: 400 !important; font-size: 0.8rem !important; flex: 1; }
+    .root-folders-browse-inline-input {
+        flex: 1; padding: 7px 10px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 6px; color: #f8fafc; font-family: monospace; font-size: 0.9rem; box-sizing: border-box;
+    }
+    .root-folders-browse-inline-input:focus { outline: none; border-color: #6366f1; }
+    .root-folders-browse-inline-ok {
+        padding: 6px 12px; background: rgba(16, 185, 129, 0.2); border: 1px solid rgba(16, 185, 129, 0.4);
+        border-radius: 6px; color: #6ee7b7; cursor: pointer; font-size: 0.85rem;
+    }
+    .root-folders-browse-inline-ok:hover { background: rgba(16, 185, 129, 0.3); }
+    .root-folders-browse-inline-cancel {
+        padding: 6px 12px; background: rgba(148, 163, 184, 0.15); border: 1px solid rgba(148, 163, 184, 0.3);
+        border-radius: 6px; color: #94a3b8; cursor: pointer; font-size: 0.85rem;
+    }
+    .root-folders-browse-inline-cancel:hover { background: rgba(148, 163, 184, 0.25); }
+    .root-folders-browse-inline-danger {
+        padding: 6px 12px; background: rgba(239, 68, 68, 0.2); border: 1px solid rgba(239, 68, 68, 0.4);
+        border-radius: 6px; color: #f87171; cursor: pointer; font-size: 0.85rem; font-weight: 600;
+    }
+    .root-folders-browse-inline-danger:hover { background: rgba(239, 68, 68, 0.3); }
+    /* Inline rename input (replaces name text in a folder row) */
+    .root-folders-browse-item-rename-input {
+        flex: 1; padding: 5px 8px; background: rgba(15, 23, 42, 0.8); border: 1px solid rgba(99, 102, 241, 0.4);
+        border-radius: 5px; color: #f8fafc; font-family: monospace; font-size: 0.9rem; box-sizing: border-box;
+    }
+    .root-folders-browse-item-rename-input:focus { outline: none; border-color: #6366f1; }
+    .root-folders-browse-actions {
+        display: flex; justify-content: flex-end; gap: 12px;
+        padding: 16px 20px; border-top: 1px solid rgba(148, 163, 184, 0.2);
+    }
+    .btn-root-folders-browse-cancel {
+        padding: 10px 18px; background: #334155; color: #e2e8f0; border: none; border-radius: 8px;
+        font-weight: 600; cursor: pointer;
+    }
+    .btn-root-folders-browse-ok {
+        padding: 10px 18px;
+        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+        color: #fff;
+        border: 1px solid rgba(99, 102, 241, 0.5);
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+    }
+    .btn-root-folders-browse-ok:hover {
+        filter: brightness(1.1);
+    }
+</style>

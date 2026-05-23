@@ -1,0 +1,3969 @@
+"""
+SQLite Database Manager for Sniparr
+Replaces all JSON file operations with SQLite database for better performance and reliability.
+Handles both app configurations, general settings, and stateful management data.
+"""
+
+import os
+import json
+import sqlite3
+import threading
+from pathlib import Path
+from typing import Dict, List, Any, Optional, Set
+from datetime import datetime, timedelta
+import logging
+import time
+import shutil
+
+logger = logging.getLogger(__name__)
+
+class SniparrDatabase:
+    """Database manager for all Sniparr configurations and settings"""
+    
+    def __init__(self):
+        self._thread_local = threading.local()
+        self.db_path = self._get_database_path()
+        self.ensure_database_exists()
+    
+    @staticmethod
+    def _use_row_factory(conn):
+        """Context manager that temporarily sets row_factory = sqlite3.Row on a connection,
+        then resets it to None on exit. Prevents row_factory leaking to other callers
+        sharing the same thread-local connection."""
+        import contextlib
+        @contextlib.contextmanager
+        def _ctx():
+            old = conn.row_factory
+            conn.row_factory = sqlite3.Row
+            try:
+                yield conn
+            finally:
+                conn.row_factory = old
+        return _ctx()
+
+    def _configure_connection(self, conn):
+        """Configure SQLite connection with Synology NAS compatible settings.
+        
+        Memory note: cache_size is PER CONNECTION and Sniparr uses thread-local
+        connections.  With 32 Waitress threads + background threads (~42 total),
+        the old 16 MB setting meant 42 × 16 MB ≈ 672 MB of RAM just for SQLite
+        page cache.  Reduced to 2 MB (still generous for a small config DB).
+        """
+        conn.execute('PRAGMA foreign_keys = ON')
+        # DELETE journal mode is reliable on all filesystems including Unraid shfs/FUSE.
+        # WAL mode requires shared-memory locking that FUSE doesn't always implement
+        # correctly, causing the -wal file to grow unboundedly and corrupt on restart.
+        conn.execute('PRAGMA journal_mode = DELETE')
+        conn.execute('PRAGMA synchronous = FULL')
+        conn.execute('PRAGMA cache_size = -2000')
+        conn.execute('PRAGMA temp_store = MEMORY')
+        conn.execute('PRAGMA busy_timeout = 30000')
+        conn.execute('PRAGMA auto_vacuum = INCREMENTAL')
+    
+    def get_connection(self):
+        """Get a configured SQLite connection with Synology NAS compatibility.
+        
+        Uses thread-local connection caching to avoid repeatedly creating new
+        connections and running PRAGMA configuration on every database operation.
+        Falls back to retry logic with WAL recovery before resorting to corruption handling.
+        This prevents false-positive corruption detection after unclean shutdowns.
+        """
+        # Try to reuse thread-local cached connection (avoids ~5-10ms overhead per operation)
+        cached_conn = getattr(self._thread_local, 'conn', None)
+        if cached_conn is not None:
+            try:
+                cached_conn.execute("SELECT 1")
+                # Reset row_factory to prevent leaking Row mode across callers
+                cached_conn.row_factory = None
+                return cached_conn
+            except Exception:
+                # Connection is stale/broken, discard it
+                try:
+                    cached_conn.close()
+                except Exception:
+                    pass
+                self._thread_local.conn = None
+        
+        # No valid cached connection — create a new one with retry logic
+        max_retries = 3
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                conn = sqlite3.connect(self.db_path, timeout=30)
+                self._configure_connection(conn)
+                # Test the connection by running a simple query
+                conn.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1").fetchone()
+                # Cache for this thread
+                self._thread_local.conn = conn
+                return conn
+            except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
+                last_error = e
+                error_str = str(e).lower()
+                
+                if "file is not a database" in error_str or "database disk image is malformed" in error_str:
+                    if attempt == 0:
+                        # First attempt: try WAL recovery before anything destructive
+                        logger.warning(f"Database error on attempt {attempt + 1}: {e}. Attempting WAL recovery...")
+                        if self._attempt_wal_recovery():
+                            logger.info("WAL recovery succeeded, retrying connection")
+                            continue
+                        logger.warning("WAL recovery did not help, will retry...")
+                        time.sleep(1)
+                        continue
+                    elif attempt == 1:
+                        # Second attempt: try a simple reconnect after a brief wait
+                        logger.warning(f"Database error on attempt {attempt + 1}: {e}. Waiting and retrying...")
+                        time.sleep(2)
+                        continue
+                    else:
+                        # Final attempt: corruption is real, handle it
+                        logger.error(f"Database corruption confirmed after {max_retries} attempts: {e}")
+                        self._handle_database_corruption()
+                        # Try connecting again after recovery
+                        conn = sqlite3.connect(self.db_path, timeout=30)
+                        self._configure_connection(conn)
+                        self._thread_local.conn = conn
+                        return conn
+                elif "database is locked" in error_str:
+                    logger.warning(f"Database locked on attempt {attempt + 1}, waiting...")
+                    time.sleep(2)
+                    continue
+                else:
+                    raise
+        
+        # Should not reach here, but just in case
+        raise last_error if last_error else sqlite3.OperationalError("Failed to connect to database")
+    
+    def invalidate_connection(self):
+        """Invalidate the thread-local cached connection (call after database reset/delete)."""
+        cached_conn = getattr(self._thread_local, 'conn', None)
+        if cached_conn is not None:
+            try:
+                cached_conn.close()
+            except Exception:
+                pass
+            self._thread_local.conn = None
+    
+    def _get_database_path(self) -> Path:
+        """Get database path - use /config for Docker, Windows AppData, or local data directory"""
+        # Check if running in Docker (config directory exists)
+        config_dir = Path("/config")
+        if config_dir.exists() and config_dir.is_dir():
+            # Running in Docker - use persistent config directory
+            return config_dir / "sniparr.db"
+        
+        # Check if we have a Windows-specific config directory set
+        windows_config = os.environ.get("SNIPARR_CONFIG_DIR")
+        if windows_config:
+            config_path = Path(windows_config)
+            config_path.mkdir(parents=True, exist_ok=True)
+            return config_path / "sniparr.db"
+        
+        # Check if we're on Windows and use AppData
+        import platform
+        if platform.system() == "Windows":
+            appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
+            windows_config_dir = Path(appdata) / "Sniparr"
+            windows_config_dir.mkdir(parents=True, exist_ok=True)
+            return windows_config_dir / "sniparr.db"
+        
+        # For local development on non-Windows, use data directory in project root
+        project_root = Path(__file__).parent.parent.parent.parent
+        data_dir = project_root / "data"
+        
+        # Ensure directory exists
+        data_dir.mkdir(parents=True, exist_ok=True)
+        return data_dir / "sniparr.db"
+
+
+
+    def _attempt_wal_recovery(self) -> bool:
+        """Clean up any leftover WAL/SHM files from a previous WAL-mode run.
+
+        Since we now use DELETE journal mode, WAL files should not be created.
+        This handles migration from any previous WAL-mode databases.
+        """
+        try:
+            wal_path = Path(str(self.db_path) + "-wal")
+            shm_path = Path(str(self.db_path) + "-shm")
+
+            recovered = False
+            if wal_path.exists():
+                logger.info(f"Legacy WAL file found ({wal_path.stat().st_size} bytes), converting to DELETE mode...")
+                try:
+                    conn = sqlite3.connect(self.db_path, timeout=30)
+                    conn.execute('PRAGMA busy_timeout = 30000')
+                    conn.execute('PRAGMA journal_mode = DELETE')
+                    conn.close()
+                    recovered = True
+                    logger.info("Converted WAL database to DELETE journal mode")
+                except Exception as e:
+                    logger.warning(f"WAL conversion failed: {e}")
+                # Remove leftover files regardless
+                for p in (wal_path, shm_path):
+                    try:
+                        if p.exists():
+                            p.unlink()
+                    except Exception:
+                        pass
+            elif shm_path.exists():
+                try:
+                    shm_path.unlink()
+                except Exception:
+                    pass
+
+            return recovered
+        except Exception as e:
+            logger.warning(f"WAL recovery attempt failed: {e}")
+            return False
+    
+    def _handle_database_corruption(self):
+        """Handle confirmed database corruption with recovery-first approach.
+        
+        This is only called after WAL recovery and retries have failed.
+        It tries multiple recovery strategies before resorting to deletion:
+        1. SQLite .recover to dump and reload
+        2. Copy user data from corrupted DB to fresh DB
+        3. Only delete as last resort, always creating a backup first
+        """
+        logger.error(f"Handling confirmed database corruption for: {self.db_path}")
+        
+        if not self.db_path.exists():
+            logger.info("Database file does not exist, nothing to recover")
+            return
+        
+        # Always create a backup first - NEVER delete without backup
+        backup_path = self.db_path.parent / f"sniparr_corrupted_backup_{int(time.time())}.db"
+        try:
+            shutil.copy2(self.db_path, backup_path)
+            logger.warning(f"Corrupted database backed up to: {backup_path}")
+        except Exception as backup_error:
+            logger.error(f"Failed to create backup copy: {backup_error}")
+            # Try rename as fallback
+            try:
+                self.db_path.rename(backup_path)
+                logger.warning(f"Corrupted database renamed to: {backup_path}")
+                return  # File moved, no need to delete
+            except Exception:
+                pass
+        
+        # Strategy 1: Try to salvage critical data (users, settings) from corrupted DB
+        recovered_users = []
+        recovered_settings = []
+        try:
+            conn = sqlite3.connect(backup_path, timeout=10)
+            conn.execute('PRAGMA journal_mode = OFF')  # Don't use WAL on corrupted file
+            try:
+                # Try to read users table
+                cursor = conn.execute("SELECT username, password, two_fa_secret, plex_token, plex_user_data FROM users")
+                recovered_users = cursor.fetchall()
+                logger.info(f"Recovered {len(recovered_users)} user(s) from corrupted database")
+            except Exception as e:
+                logger.warning(f"Could not recover users: {e}")
+            
+            try:
+                # Try to read general settings
+                cursor = conn.execute("SELECT setting_key, setting_value FROM general_settings")
+                recovered_settings = cursor.fetchall()
+                logger.info(f"Recovered {len(recovered_settings)} setting(s) from corrupted database")
+            except Exception as e:
+                logger.warning(f"Could not recover settings: {e}")
+            
+            conn.close()
+        except Exception as e:
+            logger.warning(f"Could not open corrupted database for recovery: {e}")
+        
+        # Remove the corrupted database file (backup already exists)
+        try:
+            self.db_path.unlink()
+            # Also remove WAL and SHM files
+            wal_path = Path(str(self.db_path) + "-wal")
+            shm_path = Path(str(self.db_path) + "-shm")
+            if wal_path.exists():
+                wal_path.unlink()
+            if shm_path.exists():
+                shm_path.unlink()
+        except Exception as rm_error:
+            logger.error(f"Error removing corrupted database: {rm_error}")
+        
+        # Strategy 2: Recreate database and restore recovered data
+        if recovered_users or recovered_settings:
+            try:
+                # Create fresh database with tables
+                self.ensure_database_exists()
+                
+                conn = sqlite3.connect(self.db_path, timeout=30)
+                self._configure_connection(conn)
+                
+                # Restore users
+                for user in recovered_users:
+                    try:
+                        conn.execute(
+                            "INSERT OR REPLACE INTO users (username, password, two_fa_secret, plex_token, plex_user_data) VALUES (?, ?, ?, ?, ?)",
+                            user
+                        )
+                        logger.info(f"Restored user: {user[0]}")
+                    except Exception as e:
+                        logger.warning(f"Failed to restore user {user[0]}: {e}")
+                
+                # Restore general settings (skip setup_progress to avoid stale state)
+                for key, value in recovered_settings:
+                    if key != 'setup_progress':
+                        try:
+                            conn.execute(
+                                "INSERT OR REPLACE INTO general_settings (setting_key, setting_value) VALUES (?, ?)",
+                                (key, value)
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to restore setting {key}: {e}")
+                
+                conn.commit()
+                conn.close()
+                logger.info("Successfully restored critical data from corrupted database")
+                
+            except Exception as restore_error:
+                logger.error(f"Failed to restore data to fresh database: {restore_error}")
+        else:
+            logger.warning("No data could be recovered from corrupted database. Starting fresh.")
+
+    def _check_database_integrity(self) -> bool:
+        """Check if database integrity is intact"""
+        try:
+            with self.get_connection() as conn:
+                # Run SQLite integrity check
+                result = conn.execute("PRAGMA integrity_check").fetchone()
+                if result and result[0] == "ok":
+                    return True
+                else:
+                    logger.error(f"Database integrity check failed: {result}")
+                    return False
+        except Exception as e:
+            logger.error(f"Database integrity check failed with error: {e}")
+            return False
+    
+    def perform_integrity_check(self, repair: bool = False) -> dict:
+        """Perform comprehensive integrity check with optional repair"""
+        results = {
+            'status': 'ok',
+            'errors': [],
+            'warnings': [],
+            'repaired': False
+        }
+        
+        try:
+            with self.get_connection() as conn:
+                # Full integrity check
+                integrity_results = conn.execute("PRAGMA integrity_check").fetchall()
+                
+                if len(integrity_results) == 1 and integrity_results[0][0] == 'ok':
+                    logger.info("Database integrity check passed")
+                else:
+                    results['status'] = 'error'
+                    for result in integrity_results:
+                        results['errors'].append(result[0])
+                    
+                    if repair:
+                        logger.warning("Attempting to repair database corruption")
+                        try:
+                            # Attempt repair by forcing checkpoint and vacuum
+                            conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                            conn.execute("VACUUM")
+                            
+                            # Re-check integrity after repair
+                            post_repair = conn.execute("PRAGMA integrity_check").fetchall()
+                            if len(post_repair) == 1 and post_repair[0][0] == 'ok':
+                                results['status'] = 'repaired'
+                                results['repaired'] = True
+                                logger.info("Database integrity restored after repair")
+                            else:
+                                logger.error("Database repair failed, corruption persists")
+                        except Exception as repair_error:
+                            logger.error(f"Database repair attempt failed: {repair_error}")
+                
+                # Check foreign key constraints
+                fk_violations = conn.execute("PRAGMA foreign_key_check").fetchall()
+                if fk_violations:
+                    results['warnings'].append(f"Foreign key violations found: {len(fk_violations)}")
+                    for violation in fk_violations[:5]:  # Limit to first 5
+                        results['warnings'].append(f"FK violation: {violation}")
+                
+                # Check index consistency
+                for table_info in conn.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall():
+                    table_name = table_info[0]
+                    try:
+                        index_check = conn.execute(f"PRAGMA integrity_check('{table_name}')").fetchall()
+                        if len(index_check) > 1 or (len(index_check) == 1 and index_check[0][0] != 'ok'):
+                            results['warnings'].append(f"Index issues in table {table_name}")
+                    except Exception:
+                        pass  # Skip if table doesn't exist or other issues
+                        
+        except Exception as e:
+            results['status'] = 'error'
+            results['errors'].append(f"Integrity check failed: {e}")
+            logger.error(f"Failed to perform integrity check: {e}")
+        
+        return results
+    
+    def create_backup(self, backup_path: str = None) -> str:
+        """Create a backup of the database using SQLite backup API"""
+        import time
+        import shutil
+        from pathlib import Path
+        
+        if not backup_path:
+            timestamp = int(time.time())
+            backup_filename = f"sniparr_backup_{timestamp}.db"
+            backup_path = self.db_path.parent / backup_filename
+        else:
+            backup_path = Path(backup_path)
+        
+        try:
+            # Ensure backup directory exists
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            
+            # Force WAL checkpoint before backup
+            with self.get_connection() as conn:
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+            
+            # Create backup using file copy (simple but effective)
+            shutil.copy2(self.db_path, backup_path)
+            
+            # Verify backup integrity
+            backup_db = SniparrDatabase()
+            backup_db.db_path = backup_path
+            
+            if backup_db._check_database_integrity():
+                logger.info(f"Database backup created successfully: {backup_path}")
+                return str(backup_path)
+            else:
+                logger.error("Backup verification failed, removing corrupt backup")
+                backup_path.unlink(missing_ok=True)
+                raise Exception("Backup verification failed")
+                
+        except Exception as e:
+            logger.error(f"Failed to create database backup: {e}")
+            raise
+    
+    def schedule_maintenance(self):
+        """Schedule regular maintenance tasks"""
+        import threading
+        import time
+        
+        def maintenance_worker():
+            while True:
+                try:
+                    # Wait 6 hours between maintenance cycles
+                    time.sleep(6 * 60 * 60)
+                    
+                    logger.info("Starting scheduled database maintenance")
+                    
+                    # Perform integrity check
+                    integrity_results = self.perform_integrity_check(repair=True)
+                    if integrity_results['status'] == 'error':
+                        logger.error("Database integrity issues detected during maintenance")
+                    
+                    # Clean up expired rate limit entries
+                    self.cleanup_expired_rate_limits()
+                    
+                    # Clean up old hunt history entries (keep last 90 days)
+                    try:
+                        cutoff = int(time.time()) - (90 * 24 * 60 * 60)
+                        with self.get_connection() as conn:
+                            cursor = conn.execute(
+                                "DELETE FROM hunt_history WHERE date_time < ?", (cutoff,)
+                            )
+                            if cursor.rowcount > 0:
+                                conn.commit()
+                                logger.info(f"Cleaned up {cursor.rowcount} old hunt history entries")
+                    except Exception as e:
+                        logger.warning(f"Hunt history cleanup failed: {e}")
+                    
+                    # Clean up old processed reset requests
+                    try:
+                        with self.get_connection() as conn:
+                            for table in ('reset_requests', 'reset_requests_per_instance'):
+                                cursor = conn.execute(
+                                    f"DELETE FROM {table} WHERE processed = 1 AND processed_at < datetime('now', '-30 days')"
+                                )
+                                if cursor.rowcount > 0:
+                                    logger.info(f"Cleaned up {cursor.rowcount} old processed entries from {table}")
+                            conn.commit()
+                    except Exception as e:
+                        logger.warning(f"Reset requests cleanup failed: {e}")
+                    
+                    # Optimize database
+                    with self.get_connection() as conn:
+                        conn.execute("PRAGMA optimize")
+                        conn.execute("PRAGMA wal_checkpoint(PASSIVE)")
+                        conn.execute("PRAGMA incremental_vacuum(100)")
+                    
+                    logger.info("Scheduled database maintenance completed")
+                    
+                except Exception as e:
+                    logger.error(f"Database maintenance failed: {e}")
+        
+        # Start maintenance thread
+        maintenance_thread = threading.Thread(target=maintenance_worker, daemon=True)
+        maintenance_thread.start()
+        logger.info("Database maintenance scheduler started")
+    
+    def ensure_database_exists(self):
+        """Create database and all tables if they don't exist"""
+        try:
+            # Ensure the database directory exists and is writable
+            db_dir = self.db_path.parent
+            db_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Test write permissions
+            test_file = db_dir / f"db_test_{int(time.time())}.tmp"
+            try:
+                test_file.write_text("test")
+                test_file.unlink()
+            except Exception as perm_error:
+                logger.error(f"Database directory not writable: {db_dir} - {perm_error}")
+                # On Windows, try an alternative location
+                import platform
+                if platform.system() == "Windows":
+                    alt_dir = Path(os.path.expanduser("~")) / "Documents" / "Sniparr"
+                    alt_dir.mkdir(parents=True, exist_ok=True)
+                    self.db_path = alt_dir / "sniparr.db"
+                    logger.info(f"Using alternative database location: {self.db_path}")
+                else:
+                    raise perm_error
+            
+        except Exception as e:
+            logger.error(f"Error setting up database directory: {e}")
+            raise
+            
+        # Attempt WAL recovery on startup if WAL file exists
+        # This prevents data loss after unclean shutdowns (Docker stop, crash, etc.)
+        wal_path = Path(str(self.db_path) + "-wal")
+        if self.db_path.exists() and wal_path.exists():
+            logger.info("Database WAL file detected on startup — performing recovery checkpoint...")
+            self._attempt_wal_recovery()
+        
+        # Create all tables with corruption recovery
+        try:
+            self._create_all_tables()
+        except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
+            error_str = str(e).lower()
+            if "file is not a database" in error_str or "database disk image is malformed" in error_str:
+                logger.error(f"Database corruption detected during table creation: {e}")
+                # Try WAL recovery one more time before nuclear option
+                if self._attempt_wal_recovery():
+                    try:
+                        self._create_all_tables()
+                        logger.info("WAL recovery succeeded during table creation")
+                        return
+                    except Exception:
+                        pass
+                # WAL recovery didn't help, handle corruption with data salvage
+                self._handle_database_corruption()
+                # Try creating tables again after recovery
+                self._create_all_tables()
+            else:
+                raise
+                
+    def _create_all_tables(self):
+        """Create all database tables"""
+        with self.get_connection() as conn:
+            
+            # Create app_configs table for all app settings
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS app_configs (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL UNIQUE,
+                    config_data TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Create general_settings table for general/global settings
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS general_settings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    setting_key TEXT NOT NULL UNIQUE,
+                    setting_value TEXT NOT NULL,
+                    setting_type TEXT DEFAULT 'string',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Create stateful_lock table for stateful management lock info
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS stateful_lock (
+                    id INTEGER PRIMARY KEY CHECK (id = 1),
+                    created_at INTEGER NOT NULL,
+                    expires_at INTEGER NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Create stateful_processed_ids table for processed media IDs
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS stateful_processed_ids (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    instance_name TEXT NOT NULL,
+                    media_id TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(app_type, instance_name, media_id)
+                )
+            ''')
+            
+            # Create stateful_instance_locks table for per-instance state management
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS stateful_instance_locks (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    instance_name TEXT NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    expires_at INTEGER NOT NULL,
+                    expiration_hours INTEGER NOT NULL,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(app_type, instance_name)
+                )
+            ''')
+            
+            # Create media_stats table for tracking hunted/upgraded media statistics (app-level aggregate)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS media_stats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    stat_type TEXT NOT NULL,
+                    stat_value INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(app_type, stat_type)
+                )
+            ''')
+            # Per-instance stats for Home dashboard (instance name + hunted/upgraded)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS media_stats_per_instance (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    instance_name TEXT NOT NULL,
+                    stat_type TEXT NOT NULL,
+                    stat_value INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(app_type, instance_name, stat_type)
+                )
+            ''')
+            
+            # Create hourly_caps table for API usage tracking (app-level fallback)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS hourly_caps (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL UNIQUE,
+                    api_hits INTEGER DEFAULT 0,
+                    last_reset_hour INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # Per-instance API usage for *arr apps
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS hourly_caps_per_instance (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    instance_name TEXT NOT NULL,
+                    api_hits INTEGER DEFAULT 0,
+                    last_reset_hour INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(app_type, instance_name)
+                )
+            ''')
+            
+            # Create sleep_data table for cycle tracking (single-app e.g. swaparr)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS sleep_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL UNIQUE,
+                    next_cycle_time TEXT,
+                    cycle_lock BOOLEAN DEFAULT FALSE,
+                    last_cycle_start TEXT,
+                    last_cycle_end TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # Per-instance sleep/cycle data for *arr apps (one next_cycle per instance)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS sleep_data_per_instance (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    instance_name TEXT NOT NULL,
+                    next_cycle_time TEXT,
+                    cycle_lock BOOLEAN DEFAULT FALSE,
+                    last_cycle_start TEXT,
+                    last_cycle_end TEXT,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(app_type, instance_name)
+                )
+            ''')
+            
+            # Create swaparr_stats table for Swaparr-specific statistics
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS swaparr_stats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    stat_key TEXT NOT NULL UNIQUE,
+                    stat_value INTEGER DEFAULT 0,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # History table moved to manager.db - remove this table if it exists
+            conn.execute('DROP TABLE IF EXISTS history')
+            
+            # Create schedules table for storing scheduled actions
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS schedules (
+                    id TEXT PRIMARY KEY,
+                    app_type TEXT NOT NULL,
+                    action TEXT NOT NULL,
+                    time_hour INTEGER NOT NULL,
+                    time_minute INTEGER NOT NULL,
+                    days TEXT NOT NULL,
+                    app_instance TEXT NOT NULL,
+                    enabled BOOLEAN DEFAULT TRUE,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Create state_data table for state management (processed IDs and reset times)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS state_data (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    state_type TEXT NOT NULL,
+                    state_data TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(app_type, state_type)
+                )
+            ''')
+            
+            # Create swaparr_state table for Swaparr-specific state management
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS swaparr_state (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_name TEXT NOT NULL,
+                    state_type TEXT NOT NULL,
+                    state_data TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(app_name, state_type)
+                )
+            ''')
+            
+            # Create users table for authentication and user management
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL UNIQUE,
+                    password TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    two_fa_enabled BOOLEAN DEFAULT FALSE,
+                    two_fa_secret TEXT,
+                    temp_2fa_secret TEXT,
+                    plex_token TEXT,
+                    plex_user_data TEXT,
+                    recovery_key TEXT
+                )
+            ''')
+            
+            # Create sponsors table for GitHub sponsors data
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS sponsors (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    login TEXT NOT NULL UNIQUE,
+                    name TEXT NOT NULL,
+                    avatar_url TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    tier TEXT DEFAULT 'Supporter',
+                    monthly_amount INTEGER DEFAULT 0,
+                    category TEXT DEFAULT 'past',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Logs table moved to separate logs.db - remove if it exists
+            conn.execute('DROP TABLE IF EXISTS logs')
+            
+            # Create recovery_key_rate_limit table for tracking failed recovery key attempts
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS recovery_key_rate_limit (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    ip_address TEXT NOT NULL,
+                    username TEXT,
+                    failed_attempts INTEGER DEFAULT 0,
+                    locked_until TIMESTAMP,
+                    last_attempt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(ip_address)
+                )
+            ''')
+
+            # Movie Hunt multi-instance: one row per tenant (ID never reused)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS movie_snipe_instances (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_movie_snipe_instances_id ON movie_snipe_instances(id)')
+
+            # TV Hunt multi-instance: one row per tenant (ID never reused)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS tv_snipe_instances (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # Create hunt_history table for tracking processed media history
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS hunt_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    instance_name TEXT NOT NULL,
+                    media_id TEXT NOT NULL,
+                    processed_info TEXT NOT NULL,
+                    operation_type TEXT DEFAULT 'missing',
+                    discovered BOOLEAN DEFAULT FALSE,
+                    date_time INTEGER NOT NULL,
+                    date_time_readable TEXT NOT NULL,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Add temp_2fa_secret column if it doesn't exist (for existing databases)
+            try:
+                conn.execute('ALTER TABLE users ADD COLUMN temp_2fa_secret TEXT')
+                logger.info("Added temp_2fa_secret column to users table")
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
+            
+            # Add recovery_key column if it doesn't exist (for existing databases)
+            try:
+                conn.execute('ALTER TABLE users ADD COLUMN recovery_key TEXT')
+                logger.info("Added recovery_key column to users table")
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
+            
+            # Add plex_linked_at column if it doesn't exist (for existing databases)
+            try:
+                conn.execute('ALTER TABLE users ADD COLUMN plex_linked_at INTEGER')
+                logger.info("Added plex_linked_at column to users table")
+            except sqlite3.OperationalError:
+                # Column already exists
+                pass
+            
+            # Create reset_requests table for reset request management (app-level e.g. swaparr)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS reset_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    processed INTEGER NOT NULL,
+                    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # Per-instance reset requests for *arr apps (multiple rows per instance over time)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS reset_requests_per_instance (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    app_type TEXT NOT NULL,
+                    instance_name TEXT NOT NULL,
+                    timestamp INTEGER NOT NULL,
+                    processed INTEGER NOT NULL,
+                    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            
+            # Notification connections table — multi-provider notification system
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS notification_connections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    provider TEXT NOT NULL,
+                    enabled INTEGER DEFAULT 1,
+                    settings TEXT NOT NULL DEFAULT '{}',
+                    triggers TEXT NOT NULL DEFAULT '{}',
+                    include_app_name INTEGER DEFAULT 1,
+                    include_instance_name INTEGER DEFAULT 1,
+                    app_scope TEXT NOT NULL DEFAULT 'all',
+                    instance_scope TEXT NOT NULL DEFAULT 'all',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            # Migration: add app_scope/instance_scope if table already existed
+            try:
+                conn.execute('SELECT app_scope FROM notification_connections LIMIT 1')
+            except sqlite3.OperationalError:
+                conn.execute("ALTER TABLE notification_connections ADD COLUMN app_scope TEXT NOT NULL DEFAULT 'all'")
+                conn.execute("ALTER TABLE notification_connections ADD COLUMN instance_scope TEXT NOT NULL DEFAULT 'all'")
+            
+            # Create indexes for better performance
+            # Note: indexes on UNIQUE columns (app_configs.app_type, general_settings.setting_key,
+            # swaparr_stats.stat_key, users.username, sponsors.login) and PRIMARY KEY columns
+            # (movie_snipe_instances.id) are redundant — SQLite auto-creates implicit indexes for these.
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_stateful_processed_app_instance ON stateful_processed_ids(app_type, instance_name)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_stateful_processed_media_id ON stateful_processed_ids(media_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_stateful_instance_locks_app_instance ON stateful_instance_locks(app_type, instance_name)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_media_stats_app_type ON media_stats(app_type, stat_type)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_hourly_caps_app_type ON hourly_caps(app_type)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_hourly_caps_per_instance_app ON hourly_caps_per_instance(app_type, instance_name)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_sleep_data_app_type ON sleep_data(app_type)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_sleep_data_per_instance_app ON sleep_data_per_instance(app_type, instance_name)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_schedules_app_type ON schedules(app_type)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_schedules_enabled ON schedules(enabled)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_schedules_time ON schedules(time_hour, time_minute)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_state_data_app_type ON state_data(app_type, state_type)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_swaparr_state_app_name ON swaparr_state(app_name, state_type)')
+            # Logs indexes moved to logs.db
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_hunt_history_app_instance ON hunt_history(app_type, instance_name)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_hunt_history_date_time ON hunt_history(date_time)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_hunt_history_media_id ON hunt_history(media_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_hunt_history_operation_type ON hunt_history(operation_type)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_hunt_history_processed_info ON hunt_history(processed_info)')
+            # Reset request indexes for pending lookups (queried by app_type + processed)
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_reset_requests_app_processed ON reset_requests(app_type, processed)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_reset_requests_per_instance_app ON reset_requests_per_instance(app_type, instance_name, processed)')
+            
+            # ── Indexer Hunt tables ─────────────────────────────────────
+            # Centralized indexer storage (global, not per-instance)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS indexer_snipe_indexers (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    display_name TEXT DEFAULT '',
+                    preset TEXT DEFAULT 'manual',
+                    protocol TEXT DEFAULT 'usenet',
+                    url TEXT DEFAULT '',
+                    api_path TEXT DEFAULT '/api',
+                    api_key TEXT DEFAULT '',
+                    enabled INTEGER DEFAULT 1,
+                    priority INTEGER DEFAULT 50,
+                    categories TEXT DEFAULT '[]',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+
+            # Stats tracking per indexer (aggregate counters)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS indexer_snipe_stats (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    indexer_id TEXT NOT NULL,
+                    stat_type TEXT NOT NULL,
+                    stat_value REAL DEFAULT 0,
+                    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(indexer_id, stat_type)
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_ih_stats_indexer ON indexer_snipe_stats(indexer_id)')
+
+            # Event history (searches, grabs, failures)
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS indexer_snipe_history (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    indexer_id TEXT NOT NULL,
+                    indexer_name TEXT DEFAULT '',
+                    event_type TEXT NOT NULL,
+                    query TEXT DEFAULT '',
+                    result_title TEXT DEFAULT '',
+                    response_time_ms INTEGER DEFAULT 0,
+                    success INTEGER DEFAULT 1,
+                    error_message TEXT DEFAULT '',
+                    instance_id INTEGER DEFAULT NULL,
+                    instance_name TEXT DEFAULT '',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_ih_history_indexer ON indexer_snipe_history(indexer_id)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_ih_history_type ON indexer_snipe_history(event_type)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_ih_history_date ON indexer_snipe_history(created_at)')
+
+            # Security audit log — tamper-evident trail of auth and admin events
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS security_audit_log (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event      TEXT    NOT NULL,
+                    username   TEXT    NOT NULL DEFAULT '',
+                    ip_address TEXT    NOT NULL DEFAULT '',
+                    detail     TEXT    NOT NULL DEFAULT '',
+                    ts         INTEGER NOT NULL
+                )
+            ''')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_audit_ts       ON security_audit_log(ts DESC)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_audit_username  ON security_audit_log(username)')
+            conn.execute('CREATE INDEX IF NOT EXISTS idx_audit_event     ON security_audit_log(event)')
+
+            # Account lockout columns — added via migration so existing DBs are not broken
+            try:
+                conn.execute('SELECT failed_login_count FROM users LIMIT 1')
+            except sqlite3.OperationalError:
+                conn.execute('ALTER TABLE users ADD COLUMN failed_login_count INTEGER NOT NULL DEFAULT 0')
+            try:
+                conn.execute('SELECT locked_until FROM users LIMIT 1')
+            except sqlite3.OperationalError:
+                conn.execute('ALTER TABLE users ADD COLUMN locked_until INTEGER')
+
+            conn.commit()
+            logger.info(f"Database initialized at: {self.db_path}")
+    
+    def get_app_config(self, app_type: str) -> Optional[Dict[str, Any]]:
+        """Get app configuration from database"""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                'SELECT config_data FROM app_configs WHERE app_type = ?',
+                (app_type,)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                try:
+                    return json.loads(row[0])
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse JSON for {app_type}: {e}")
+                    return None
+            return None
+    
+    def save_app_config(self, app_type: str, config_data: Dict[str, Any]):
+        """Save app configuration to database"""
+        config_json = json.dumps(config_data, indent=2)
+        
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO app_configs (app_type, config_data, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            ''', (app_type, config_json))
+            conn.commit()
+            # Auto-save enabled - no need to log every successful save
+
+    def get_app_config_for_instance(self, app_type: str, instance_id: int) -> Optional[Dict[str, Any]]:
+        """Get app config for a Movie Hunt instance. Supports legacy single-instance format."""
+        raw = self.get_app_config(app_type)
+        if not raw or not isinstance(raw, dict):
+            return None
+        if 'instances' in raw and isinstance(raw['instances'], dict):
+            inst_key = str(instance_id)
+            return raw['instances'].get(inst_key)
+        # Legacy: no "instances" key -> whole blob is for instance 1
+        if instance_id == 1:
+            return raw
+        return None
+
+    def save_app_config_for_instance(self, app_type: str, instance_id: int, data: Dict[str, Any]):
+        """Save app config for a Movie Hunt instance. Writes per-instance structure."""
+        raw = self.get_app_config(app_type)
+        if not raw or not isinstance(raw, dict):
+            raw = {}
+        if 'instances' not in raw or not isinstance(raw['instances'], dict):
+            # Migrate: existing data becomes instance 1
+            raw = {'instances': {'1': raw if raw else {}}}
+        inst_key = str(instance_id)
+        raw.setdefault('instances', {})[inst_key] = data
+        self.save_app_config(app_type, raw)
+
+    def get_movie_snipe_instances(self) -> List[Dict[str, Any]]:
+        """List all Movie Hunt instances (id, name, created_at)."""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                'SELECT id, name, created_at FROM movie_snipe_instances ORDER BY id'
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def create_movie_snipe_instance(self, name: str) -> int:
+        """Create a new Movie Hunt instance. Returns new id (never reused). Name made unique by appending -1, -2 if needed."""
+        name = (name or '').strip() or 'Unnamed'
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT name FROM movie_snipe_instances')
+            existing_names = {row[0] for row in cursor.fetchall()}
+            display_name = name
+            suffix = 0
+            while display_name in existing_names:
+                suffix += 1
+                display_name = f'{name}-{suffix}'
+            # Let SQLite AUTOINCREMENT assign the id to avoid TOCTOU race conditions
+            cursor = conn.execute(
+                'INSERT INTO movie_snipe_instances (name, created_at) VALUES (?, CURRENT_TIMESTAMP)',
+                (display_name,)
+            )
+            conn.commit()
+            return cursor.lastrowid
+
+    def update_movie_snipe_instance(self, instance_id: int, name: str) -> bool:
+        """Rename a Movie Hunt instance. Enforces unique name (auto-append -1, -2 if needed)."""
+        name = (name or '').strip() or 'Unnamed'
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT id, name FROM movie_snipe_instances')
+            rows = cursor.fetchall()
+            existing = {r[0]: r[1] for r in rows}
+            if instance_id not in existing:
+                return False
+            existing_names = {n for i, n in rows if i != instance_id}
+            display_name = name
+            suffix = 0
+            while display_name in existing_names:
+                suffix += 1
+                display_name = f'{name}-{suffix}'
+            conn.execute('UPDATE movie_snipe_instances SET name = ? WHERE id = ?', (display_name, instance_id))
+            conn.commit()
+            return True
+
+    def delete_movie_snipe_instance(self, instance_id: int) -> bool:
+        """Delete a Movie Hunt instance. ID is never reused."""
+        with self.get_connection() as conn:
+            cursor = conn.execute('DELETE FROM movie_snipe_instances WHERE id = ?', (instance_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_current_movie_snipe_instance_id(self) -> int:
+        """Current Movie Hunt instance (server-stored). Returns 0 when no instances exist or stored id is invalid."""
+        ids = [i['id'] for i in self.get_movie_snipe_instances()]
+        if not ids:
+            return 0
+        val = self.get_general_setting('movie_snipe_current_instance_id')
+        if val is None:
+            return ids[0]
+        try:
+            iid = int(val)
+            # If the stored ID is valid, return it; else return the first available instance
+            return iid if iid in ids else ids[0]
+        except (TypeError, ValueError):
+            return ids[0]
+
+    def set_current_movie_snipe_instance_id(self, instance_id: int):
+        """Set current Movie Hunt instance (server-stored)."""
+        self.set_general_setting('movie_snipe_current_instance_id', instance_id)
+
+    # ── TV Hunt Instance Methods ──
+
+    def get_tv_snipe_instances(self) -> List[Dict[str, Any]]:
+        """List all TV Hunt instances (id, name, created_at)."""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                'SELECT id, name, created_at FROM tv_snipe_instances ORDER BY id'
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
+    def create_tv_snipe_instance(self, name: str) -> int:
+        """Create a new TV Hunt instance. Returns new id (never reused)."""
+        name = (name or '').strip() or 'Unnamed'
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT name FROM tv_snipe_instances')
+            existing_names = {row[0] for row in cursor.fetchall()}
+            display_name = name
+            suffix = 0
+            while display_name in existing_names:
+                suffix += 1
+                display_name = f'{name}-{suffix}'
+            cursor = conn.execute(
+                'INSERT INTO tv_snipe_instances (name, created_at) VALUES (?, CURRENT_TIMESTAMP)',
+                (display_name,)
+            )
+            conn.commit()
+            return cursor.lastrowid
+
+    def update_tv_snipe_instance(self, instance_id: int, name: str) -> bool:
+        """Rename a TV Hunt instance."""
+        name = (name or '').strip() or 'Unnamed'
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT id, name FROM tv_snipe_instances')
+            rows = cursor.fetchall()
+            existing = {r[0]: r[1] for r in rows}
+            if instance_id not in existing:
+                return False
+            existing_names = {n for i, n in rows if i != instance_id}
+            display_name = name
+            suffix = 0
+            while display_name in existing_names:
+                suffix += 1
+                display_name = f'{name}-{suffix}'
+            conn.execute('UPDATE tv_snipe_instances SET name = ? WHERE id = ?', (display_name, instance_id))
+            conn.commit()
+            return True
+
+    def delete_tv_snipe_instance(self, instance_id: int) -> bool:
+        """Delete a TV Hunt instance. ID is never reused."""
+        with self.get_connection() as conn:
+            cursor = conn.execute('DELETE FROM tv_snipe_instances WHERE id = ?', (instance_id,))
+            conn.commit()
+            return cursor.rowcount > 0
+
+    def get_current_tv_snipe_instance_id(self) -> int:
+        """Current TV Hunt instance (server-stored). Returns 0 when no instances exist."""
+        ids = [i['id'] for i in self.get_tv_snipe_instances()]
+        if not ids:
+            return 0
+        val = self.get_general_setting('tv_snipe_current_instance_id')
+        if val is None:
+            return ids[0]
+        try:
+            iid = int(val)
+            return iid if iid in ids else ids[0]
+        except (TypeError, ValueError):
+            return ids[0]
+
+    def set_current_tv_snipe_instance_id(self, instance_id: int):
+        """Set current TV Hunt instance (server-stored)."""
+        self.set_general_setting('tv_snipe_current_instance_id', instance_id)
+
+    def get_general_settings(self) -> Dict[str, Any]:
+        """Get all general settings as a dictionary"""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                'SELECT setting_key, setting_value, setting_type FROM general_settings'
+            )
+            
+            settings = {}
+            for row in cursor.fetchall():
+                key = row['setting_key']
+                value = row['setting_value']
+                setting_type = row['setting_type']
+                
+                # Convert value based on type
+                if setting_type == 'boolean':
+                    settings[key] = value.lower() == 'true'
+                elif setting_type == 'integer':
+                    settings[key] = int(value)
+                elif setting_type == 'float':
+                    settings[key] = float(value)
+                elif setting_type == 'json':
+                    try:
+                        settings[key] = json.loads(value)
+                    except json.JSONDecodeError:
+                        settings[key] = value
+                else:  # string
+                    settings[key] = value
+            
+            return settings
+    
+    def save_general_settings(self, settings: Dict[str, Any]):
+        """Save general settings to database with durability for critical settings"""
+        # Check if this write includes critical settings that must survive crashes
+        critical_keys = {'auth_mode', 'local_access_bypass', 'proxy_auth_bypass', 'base_url'}
+        is_critical = bool(critical_keys & set(settings.keys()))
+        
+        with self.get_connection() as conn:
+            if is_critical:
+                conn.execute('PRAGMA synchronous = FULL')
+            
+            for key, value in settings.items():
+                # Determine type and convert value
+                if isinstance(value, bool):
+                    setting_type = 'boolean'
+                    setting_value = str(value).lower()
+                elif isinstance(value, int):
+                    setting_type = 'integer'
+                    setting_value = str(value)
+                elif isinstance(value, float):
+                    setting_type = 'float'
+                    setting_value = str(value)
+                elif isinstance(value, (list, dict)):
+                    setting_type = 'json'
+                    setting_value = json.dumps(value)
+                else:
+                    setting_type = 'string'
+                    setting_value = str(value)
+                
+                conn.execute('''
+                    INSERT OR REPLACE INTO general_settings 
+                    (setting_key, setting_value, setting_type, updated_at)
+                    VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (key, setting_value, setting_type))
+            
+            conn.commit()
+            
+            if is_critical:
+                # Force WAL checkpoint for critical settings
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                conn.execute('PRAGMA synchronous = NORMAL')
+            # Auto-save enabled - no need to log every successful save
+    
+    def _migrate_general_settings_from_app_configs_if_needed(self):
+        """
+        Migrate general settings from app_configs to general_settings table if needed.
+        Only runs if general_settings table is empty (preserves config on upgrade from v8 to v9).
+        Issue #802, #815
+        """
+        try:
+            with self.get_connection() as conn:
+                # Check if general_settings is empty
+                cursor = conn.execute('SELECT COUNT(*) FROM general_settings')
+                count = cursor.fetchone()[0]
+                
+                if count > 0:
+                    # General settings already exist, no migration needed
+                    return
+                
+                # Check if old 'general' or 'advanced' configs exist in app_configs
+                cursor = conn.execute(
+                    "SELECT config_data FROM app_configs WHERE app_type IN ('general', 'advanced')"
+                )
+                rows = cursor.fetchall()
+                
+                if not rows:
+                    # No legacy config to migrate
+                    return
+                
+                # Merge all legacy general/advanced configs
+                merged_settings = {}
+                for row in rows:
+                    try:
+                        config_data = json.loads(row[0])
+                        if isinstance(config_data, dict):
+                            merged_settings.update(config_data)
+                    except (json.JSONDecodeError, TypeError):
+                        continue
+                
+                if merged_settings:
+                    # Save merged settings to general_settings table
+                    for key, value in merged_settings.items():
+                        if isinstance(value, bool):
+                            setting_type = 'boolean'
+                            setting_value = str(value).lower()
+                        elif isinstance(value, int):
+                            setting_type = 'integer'
+                            setting_value = str(value)
+                        elif isinstance(value, float):
+                            setting_type = 'float'
+                            setting_value = str(value)
+                        elif isinstance(value, (list, dict)):
+                            setting_type = 'json'
+                            setting_value = json.dumps(value)
+                        else:
+                            setting_type = 'string'
+                            setting_value = str(value)
+                        
+                        conn.execute('''
+                            INSERT OR REPLACE INTO general_settings 
+                            (setting_key, setting_value, setting_type, updated_at)
+                            VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                        ''', (key, setting_value, setting_type))
+                    
+                    conn.commit()
+                    logger.info(f"Migrated {len(merged_settings)} general settings from app_configs to general_settings")
+        except Exception as e:
+            logger.error(f"Error during general settings migration: {e}")
+            # Don't raise - allow app to continue with defaults if migration fails
+    
+    def get_general_setting(self, key: str, default: Any = None) -> Any:
+        """Get a specific general setting"""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                'SELECT setting_value, setting_type FROM general_settings WHERE setting_key = ?',
+                (key,)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                value, setting_type = row
+                
+                # Convert value based on type
+                if setting_type == 'boolean':
+                    return value.lower() == 'true'
+                elif setting_type == 'integer':
+                    return int(value)
+                elif setting_type == 'float':
+                    return float(value)
+                elif setting_type == 'json':
+                    try:
+                        return json.loads(value)
+                    except json.JSONDecodeError:
+                        return value
+                else:  # string
+                    return value
+            
+            return default
+    
+    def set_general_setting(self, key: str, value: Any):
+        """Set a specific general setting"""
+        # Determine type and convert value
+        if isinstance(value, bool):
+            setting_type = 'boolean'
+            setting_value = str(value).lower()
+        elif isinstance(value, int):
+            setting_type = 'integer'
+            setting_value = str(value)
+        elif isinstance(value, float):
+            setting_type = 'float'
+            setting_value = str(value)
+        elif isinstance(value, (list, dict)):
+            setting_type = 'json'
+            setting_value = json.dumps(value)
+        else:
+            setting_type = 'string'
+            setting_value = str(value)
+        
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO general_settings 
+                (setting_key, setting_value, setting_type, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (key, setting_value, setting_type))
+            conn.commit()
+            logger.debug(f"Set general setting {key} = {value}")
+    
+    def get_version(self) -> str:
+        """Get the current version from database"""
+        return self.get_general_setting('current_version', 'N/A')
+    
+    def set_version(self, version: str):
+        """Set the current version in database"""
+        self.set_general_setting('current_version', version.strip())
+        logger.debug(f"Version stored in database: {version.strip()}")
+    
+    def get_all_app_types(self) -> List[str]:
+        """Get list of all app types in database"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT app_type FROM app_configs ORDER BY app_type')
+            return [row[0] for row in cursor.fetchall()]
+    
+    def initialize_from_defaults(self):
+        """Initialize database with default configurations if empty"""
+        from src.primary.default_settings import get_all_app_types, get_default_config
+        
+        for app_type in get_all_app_types():
+            # Check if config already exists
+            existing_config = self.get_app_config(app_type) if app_type != 'general' else self.get_general_settings()
+            
+            if not existing_config:
+                try:
+                    # Get default config from Python module
+                    default_config = get_default_config(app_type)
+                    
+                    if app_type == 'general':
+                        self.save_general_settings(default_config)
+                    else:
+                        self.save_app_config(app_type, default_config)
+                    
+                    logger.info(f"Initialized {app_type} with default configuration")
+                except Exception as e:
+                    logger.error(f"Failed to initialize {app_type} from defaults: {e}")
+    
+
+
+    # Stateful Management Methods
+    
+    def get_stateful_lock_info(self) -> Dict[str, Any]:
+        """Get stateful management lock information"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT created_at, expires_at FROM stateful_lock WHERE id = 1')
+            row = cursor.fetchone()
+            
+            if row:
+                return {
+                    "created_at": row[0],
+                    "expires_at": row[1]
+                }
+            return {}
+    
+    def set_stateful_lock_info(self, created_at: int, expires_at: int):
+        """Set stateful management lock information"""
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO stateful_lock (id, created_at, expires_at, updated_at)
+                VALUES (1, ?, ?, CURRENT_TIMESTAMP)
+            ''', (created_at, expires_at))
+            conn.commit()
+            logger.debug(f"Set stateful lock: created_at={created_at}, expires_at={expires_at}")
+    
+    def get_processed_ids(self, app_type: str, instance_name: str) -> Set[str]:
+        """Get processed media IDs for a specific app instance"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('''
+                SELECT media_id FROM stateful_processed_ids 
+                WHERE app_type = ? AND instance_name = ?
+            ''', (app_type, instance_name))
+            
+            return {row[0] for row in cursor.fetchall()}
+    
+    def add_processed_id(self, app_type: str, instance_name: str, media_id: str) -> bool:
+        """Add a processed media ID for a specific app instance"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute('''
+                    INSERT OR IGNORE INTO stateful_processed_ids 
+                    (app_type, instance_name, media_id)
+                    VALUES (?, ?, ?)
+                ''', (app_type, instance_name, str(media_id)))
+                conn.commit()
+                logger.debug(f"Added processed ID {media_id} for {app_type}/{instance_name}")
+                return True
+        except Exception as e:
+            logger.error(f"Error adding processed ID {media_id} for {app_type}/{instance_name}: {e}")
+            return False
+    
+    def is_processed(self, app_type: str, instance_name: str, media_id: str) -> bool:
+        """Check if a media ID has been processed for a specific app instance"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('''
+                SELECT 1 FROM stateful_processed_ids 
+                WHERE app_type = ? AND instance_name = ? AND media_id = ?
+            ''', (app_type, instance_name, str(media_id)))
+            
+            return cursor.fetchone() is not None
+    
+    def clear_all_stateful_data(self):
+        """Clear all stateful management data (for reset)"""
+        with self.get_connection() as conn:
+            # Clear processed IDs
+            conn.execute('DELETE FROM stateful_processed_ids')
+            # Clear lock info
+            conn.execute('DELETE FROM stateful_lock')
+            # Clear per-instance locks
+            conn.execute('DELETE FROM stateful_instance_locks')
+            conn.commit()
+            logger.info("Cleared all stateful management data from database")
+    
+    # Per-Instance State Management Methods
+    
+    def get_instance_lock_info(self, app_type: str, instance_name: str) -> Dict[str, Any]:
+        """Get state management lock information for a specific instance"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('''
+                SELECT created_at, expires_at, expiration_hours 
+                FROM stateful_instance_locks 
+                WHERE app_type = ? AND instance_name = ?
+            ''', (app_type, instance_name))
+            row = cursor.fetchone()
+            
+            if row:
+                return {
+                    "created_at": row[0],
+                    "expires_at": row[1],
+                    "expiration_hours": row[2]
+                }
+            return {}
+    
+    def get_all_instance_lock_info(self) -> Dict[str, Dict[str, Dict[str, Any]]]:
+        """Get all instance lock info in one query. Returns {app_type: {instance_name: {created_at, expires_at, expiration_hours}}}"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT app_type, instance_name, created_at, expires_at, expiration_hours FROM stateful_instance_locks')
+            result = {}
+            for row in cursor.fetchall():
+                app = row[0]
+                inst = row[1]
+                if app not in result:
+                    result[app] = {}
+                result[app][inst] = {
+                    "created_at": row[2],
+                    "expires_at": row[3],
+                    "expiration_hours": row[4]
+                }
+            return result
+    
+    def set_instance_lock_info(self, app_type: str, instance_name: str, created_at: int, expires_at: int, expiration_hours: int):
+        """Set state management lock information for a specific instance"""
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO stateful_instance_locks 
+                (app_type, instance_name, created_at, expires_at, expiration_hours, updated_at)
+                VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (app_type, instance_name, created_at, expires_at, expiration_hours))
+            conn.commit()
+    
+    def check_instance_expiration(self, app_type: str, instance_name: str) -> bool:
+        """Check if state management has expired for a specific instance"""
+        import time
+        current_time = int(time.time())
+        
+        lock_info = self.get_instance_lock_info(app_type, instance_name)
+        if not lock_info:
+            return False  # No lock info means not expired, just not initialized
+        
+        expires_at = lock_info.get("expires_at", 0)
+        return current_time >= expires_at
+    
+    def clear_instance_processed_ids(self, app_type: str, instance_name: str):
+        """Clear processed IDs for a specific instance"""
+        with self.get_connection() as conn:
+            conn.execute('''
+                DELETE FROM stateful_processed_ids 
+                WHERE app_type = ? AND instance_name = ?
+            ''', (app_type, instance_name))
+            conn.commit()
+            logger.info(f"Cleared processed IDs for {app_type}/{instance_name}")
+    
+    def reset_instance_state_management(self, app_type: str, instance_name: str, expiration_hours: int) -> bool:
+        """Reset state management for a specific instance"""
+        import time
+        try:
+            current_time = int(time.time())
+            expires_at = current_time + (expiration_hours * 3600)
+            
+            # Clear processed IDs for this instance
+            self.clear_instance_processed_ids(app_type, instance_name)
+            
+            # Set new lock info for this instance
+            self.set_instance_lock_info(app_type, instance_name, current_time, expires_at, expiration_hours)
+            
+            logger.info(f"Reset state management for {app_type}/{instance_name} with {expiration_hours}h expiration")
+            return True
+        except Exception as e:
+            logger.error(f"Error resetting state management for {app_type}/{instance_name}: {e}")
+            return False
+    
+    def initialize_instance_state_management(self, app_type: str, instance_name: str, expiration_hours: int):
+        """Initialize state management for a specific instance if not already initialized"""
+        lock_info = self.get_instance_lock_info(app_type, instance_name)
+        if not lock_info:
+            import time
+            current_time = int(time.time())
+            expires_at = current_time + (expiration_hours * 3600)
+            self.set_instance_lock_info(app_type, instance_name, current_time, expires_at, expiration_hours)
+            logger.info(f"Initialized state management for {app_type}/{instance_name} with {expiration_hours}h expiration")
+
+    def migrate_instance_state_management(self, app_type: str, old_instance_name: str, new_instance_name: str) -> bool:
+        """Migrate state management data from old instance name to new instance name"""
+        try:
+            with self.get_connection() as conn:
+                # Check if old instance has any state management data
+                cursor = conn.execute('''
+                    SELECT COUNT(*) FROM stateful_instance_locks 
+                    WHERE app_type = ? AND instance_name = ?
+                ''', (app_type, old_instance_name))
+                has_lock_data = cursor.fetchone()[0] > 0
+                
+                cursor = conn.execute('''
+                    SELECT COUNT(*) FROM stateful_processed_ids 
+                    WHERE app_type = ? AND instance_name = ?
+                ''', (app_type, old_instance_name))
+                has_processed_data = cursor.fetchone()[0] > 0
+                
+                if not has_lock_data and not has_processed_data:
+                    logger.debug(f"No state management data found for {app_type}/{old_instance_name}, skipping migration")
+                    return True
+                
+                # Check if new instance name already has data (avoid overwriting)
+                cursor = conn.execute('''
+                    SELECT COUNT(*) FROM stateful_instance_locks 
+                    WHERE app_type = ? AND instance_name = ?
+                ''', (app_type, new_instance_name))
+                new_has_lock_data = cursor.fetchone()[0] > 0
+                
+                cursor = conn.execute('''
+                    SELECT COUNT(*) FROM stateful_processed_ids 
+                    WHERE app_type = ? AND instance_name = ?
+                ''', (app_type, new_instance_name))
+                new_has_processed_data = cursor.fetchone()[0] > 0
+                
+                if new_has_lock_data or new_has_processed_data:
+                    logger.warning(f"New instance name {app_type}/{new_instance_name} already has state management data, skipping migration to avoid conflicts")
+                    return False
+                
+                # Migrate lock data
+                if has_lock_data:
+                    conn.execute('''
+                        UPDATE stateful_instance_locks 
+                        SET instance_name = ?, updated_at = CURRENT_TIMESTAMP
+                        WHERE app_type = ? AND instance_name = ?
+                    ''', (new_instance_name, app_type, old_instance_name))
+                    logger.info(f"Migrated state management lock data from {app_type}/{old_instance_name} to {app_type}/{new_instance_name}")
+                
+                # Migrate processed IDs
+                if has_processed_data:
+                    conn.execute('''
+                        UPDATE stateful_processed_ids 
+                        SET instance_name = ?
+                        WHERE app_type = ? AND instance_name = ?
+                    ''', (new_instance_name, app_type, old_instance_name))
+                    
+                    # Get count of migrated IDs for logging
+                    cursor = conn.execute('''
+                        SELECT COUNT(*) FROM stateful_processed_ids 
+                        WHERE app_type = ? AND instance_name = ?
+                    ''', (app_type, new_instance_name))
+                    migrated_count = cursor.fetchone()[0]
+                    
+                    logger.info(f"Migrated {migrated_count} processed IDs from {app_type}/{old_instance_name} to {app_type}/{new_instance_name}")
+                
+                # Also migrate hunt history data if it exists
+                cursor = conn.execute('''
+                    SELECT COUNT(*) FROM hunt_history 
+                    WHERE app_type = ? AND instance_name = ?
+                ''', (app_type, old_instance_name))
+                has_history_data = cursor.fetchone()[0] > 0
+                
+                if has_history_data:
+                    conn.execute('''
+                        UPDATE hunt_history 
+                        SET instance_name = ?
+                        WHERE app_type = ? AND instance_name = ?
+                    ''', (new_instance_name, app_type, old_instance_name))
+                    
+                    cursor = conn.execute('''
+                        SELECT COUNT(*) FROM hunt_history 
+                        WHERE app_type = ? AND instance_name = ?
+                    ''', (app_type, new_instance_name))
+                    migrated_history_count = cursor.fetchone()[0]
+                    
+                    logger.info(f"Migrated {migrated_history_count} hunt history entries from {app_type}/{old_instance_name} to {app_type}/{new_instance_name}")
+                
+                conn.commit()
+                logger.info(f"Successfully completed state management migration from {app_type}/{old_instance_name} to {app_type}/{new_instance_name}")
+                return True
+                
+        except Exception as e:
+            logger.error(f"Error migrating state management data from {app_type}/{old_instance_name} to {app_type}/{new_instance_name}: {e}")
+            return False
+
+    def migrate_instance_identifier(self, app_type: str, old_instance_name: str, new_instance_id: str) -> bool:
+        """
+        Migrate all per-instance data from old identifier (name) to new stable instance_id.
+        Call when assigning instance_id to an instance for the first time (e.g. legacy instance).
+        Updates: sleep_data_per_instance, hourly_caps_per_instance, reset_requests_per_instance,
+                 media_stats_per_instance, plus stateful/hunt_history via migrate_instance_state_management.
+        """
+        if not old_instance_name or not new_instance_id or old_instance_name == new_instance_id:
+            return True
+        try:
+            with self.get_connection() as conn:
+                tables_keyed = [
+                    ("sleep_data_per_instance", "instance_name"),
+                    ("hourly_caps_per_instance", "instance_name"),
+                    ("reset_requests_per_instance", "instance_name"),
+                    ("media_stats_per_instance", "instance_name"),
+                ]
+                for table, col in tables_keyed:
+                    try:
+                        cursor = conn.execute(
+                            f"UPDATE {table} SET {col} = ? WHERE app_type = ? AND {col} = ?",
+                            (new_instance_id, app_type, old_instance_name)
+                        )
+                        if cursor.rowcount > 0:
+                            logger.info(f"Migrated {table} from {app_type}/{old_instance_name} to {new_instance_id} ({cursor.rowcount} rows)")
+                    except Exception as e:
+                        logger.warning(f"Migration {table} for {app_type}: {e}")
+                conn.commit()
+            self.migrate_instance_state_management(app_type, old_instance_name, new_instance_id)
+            return True
+        except Exception as e:
+            logger.error(f"Error migrating instance identifier {app_type}/{old_instance_name} to {new_instance_id}: {e}")
+            return False
+
+    # Tally Data Management Methods
+    
+    def get_media_stats(self, app_type: str = None) -> Dict[str, Any]:
+        """Get media statistics for an app or all apps"""
+        with self.get_connection() as conn:
+            if app_type:
+                cursor = conn.execute(
+                    'SELECT stat_type, stat_value FROM media_stats WHERE app_type = ?',
+                    (app_type,)
+                )
+                return {row[0]: row[1] for row in cursor.fetchall()}
+            else:
+                cursor = conn.execute('SELECT app_type, stat_type, stat_value FROM media_stats')
+                stats = {}
+                for app, stat_type, value in cursor.fetchall():
+                    if app not in stats:
+                        stats[app] = {}
+                    stats[app][stat_type] = value
+                return stats
+    
+    def set_media_stat(self, app_type: str, stat_type: str, value: int):
+        """Set a media statistic value"""
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO media_stats (app_type, stat_type, stat_value, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (app_type, stat_type, value))
+            conn.commit()
+    
+    def increment_media_stat(self, app_type: str, stat_type: str, increment: int = 1):
+        """Increment a media statistic"""
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO media_stats (app_type, stat_type, stat_value, updated_at)
+                VALUES (?, ?, COALESCE((SELECT stat_value FROM media_stats WHERE app_type = ? AND stat_type = ?), 0) + ?, CURRENT_TIMESTAMP)
+            ''', (app_type, stat_type, app_type, stat_type, increment))
+            conn.commit()
+
+    def get_media_stats_per_instance(self, app_type: str = None):
+        """Get per-instance stats: for one app returns list of {instance_name, hunted, upgraded}; keys normalized to match settings."""
+        with self.get_connection() as conn:
+            if app_type:
+                cursor = conn.execute(
+                    'SELECT instance_name, stat_type, stat_value FROM media_stats_per_instance WHERE app_type = ?',
+                    (app_type,)
+                )
+                by_instance = {}
+                for row_name, stat_type, value in cursor.fetchall():
+                    key = self._normalize_instance_key(row_name)
+                    if key not in by_instance:
+                        by_instance[key] = {"hunted": 0, "upgraded": 0}
+                    by_instance[key][stat_type] = by_instance[key].get(stat_type, 0) + value
+                return [{"instance_name": k, "hunted": v["hunted"], "upgraded": v["upgraded"]} for k, v in by_instance.items()]
+            cursor = conn.execute('SELECT app_type, instance_name, stat_type, stat_value FROM media_stats_per_instance')
+            stats = {}
+            for app, row_name, stat_type, value in cursor.fetchall():
+                key = self._normalize_instance_key(row_name)
+                if app not in stats:
+                    stats[app] = {}
+                if key not in stats[app]:
+                    stats[app][key] = {"hunted": 0, "upgraded": 0}
+                stats[app][key][stat_type] = stats[app][key].get(stat_type, 0) + value
+            result = {}
+            for app, by_inst in stats.items():
+                result[app] = [{"instance_name": k, "hunted": v["hunted"], "upgraded": v["upgraded"]} for k, v in by_inst.items()]
+            return result
+
+    def increment_media_stat_per_instance(self, app_type: str, instance_name: str, stat_type: str, increment: int = 1):
+        """Increment a per-instance media statistic. Instance name normalized so keys match get_stats/API."""
+        if not instance_name:
+            return
+        key = self._normalize_instance_key(instance_name)
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO media_stats_per_instance (app_type, instance_name, stat_type, stat_value, updated_at)
+                VALUES (?, ?, ?, COALESCE((SELECT stat_value FROM media_stats_per_instance WHERE app_type = ? AND instance_name = ? AND stat_type = ?), 0) + ?, CURRENT_TIMESTAMP)
+            ''', (app_type, key, stat_type, app_type, key, stat_type, increment))
+            conn.commit()
+
+    def reset_media_stats_per_instance(self, app_type: str, instance_name: str = None):
+        """Reset per-instance stats for an app (or one instance if instance_name given). Instance name normalized."""
+        with self.get_connection() as conn:
+            if instance_name:
+                key = self._normalize_instance_key(instance_name)
+                cursor = conn.execute('SELECT DISTINCT instance_name FROM media_stats_per_instance WHERE app_type = ?', (app_type,))
+                for (row_name,) in cursor.fetchall():
+                    if self._normalize_instance_key(row_name) == key:
+                        conn.execute('DELETE FROM media_stats_per_instance WHERE app_type = ? AND instance_name = ?', (app_type, row_name))
+            else:
+                conn.execute('DELETE FROM media_stats_per_instance WHERE app_type = ?', (app_type,))
+            conn.commit()
+    
+    def get_hourly_caps(self) -> Dict[str, Dict[str, int]]:
+        """Get hourly API caps for all apps"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT app_type, api_hits, last_reset_hour FROM hourly_caps')
+            return {
+                row[0]: {"api_hits": row[1], "last_reset_hour": row[2]}
+                for row in cursor.fetchall()
+            }
+    
+    def set_hourly_cap(self, app_type: str, api_hits: int, last_reset_hour: int = None):
+        """Set hourly API cap data for an app"""
+        if last_reset_hour is None:
+            import datetime
+            last_reset_hour = datetime.datetime.now().hour
+        
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO hourly_caps (app_type, api_hits, last_reset_hour, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (app_type, api_hits, last_reset_hour))
+            conn.commit()
+    
+    def increment_hourly_cap(self, app_type: str, increment: int = 1):
+        """Increment hourly API usage for an app"""
+        import datetime
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO hourly_caps (app_type, api_hits, last_reset_hour, updated_at)
+                VALUES (?, COALESCE((SELECT api_hits FROM hourly_caps WHERE app_type = ?), 0) + ?, 
+                        COALESCE((SELECT last_reset_hour FROM hourly_caps WHERE app_type = ?), ?), CURRENT_TIMESTAMP)
+            ''', (app_type, app_type, increment, app_type, datetime.datetime.now().hour))
+            conn.commit()
+    
+    def reset_hourly_caps(self):
+        """Reset all hourly API caps (app-level and per-instance)"""
+        import datetime
+        current_hour = datetime.datetime.now().hour
+        with self.get_connection() as conn:
+            conn.execute('''
+                UPDATE hourly_caps SET api_hits = 0, last_reset_hour = ?, updated_at = CURRENT_TIMESTAMP
+            ''', (current_hour,))
+            conn.execute('''
+                UPDATE hourly_caps_per_instance SET api_hits = 0, last_reset_hour = ?, updated_at = CURRENT_TIMESTAMP
+            ''', (current_hour,))
+            conn.commit()
+    
+    def _normalize_instance_key(self, name: Any) -> str:
+        """Normalize instance name for consistent keys (matches stats_manager and API)."""
+        if name is None or not isinstance(name, str):
+            return "Default"
+        s = (name or "").strip()
+        return s if s else "Default"
+
+    def get_hourly_caps_per_instance(self, app_type: str = None) -> Dict[str, Dict[str, Dict[str, int]]]:
+        """Get per-instance API usage. Returns { app_type: { instance_name: { api_hits, last_reset_hour } } } or for one app. Keys normalized so read matches write."""
+        with self.get_connection() as conn:
+            if app_type:
+                cursor = conn.execute('''
+                    SELECT instance_name, api_hits, last_reset_hour FROM hourly_caps_per_instance WHERE app_type = ?
+                ''', (app_type,))
+                out = {}
+                for row in cursor.fetchall():
+                    key = self._normalize_instance_key(row[0])
+                    existing = out.get(key, {"api_hits": 0, "last_reset_hour": row[2]})
+                    out[key] = {"api_hits": existing["api_hits"] + row[1], "last_reset_hour": row[2]}
+                return out
+            cursor = conn.execute('SELECT app_type, instance_name, api_hits, last_reset_hour FROM hourly_caps_per_instance')
+            result = {}
+            for row in cursor.fetchall():
+                at, iname = row[0], self._normalize_instance_key(row[1])
+                if at not in result:
+                    result[at] = {}
+                if iname not in result[at]:
+                    result[at][iname] = {"api_hits": 0, "last_reset_hour": row[3]}
+                result[at][iname]["api_hits"] += row[2]
+            return result
+    
+    def increment_hourly_cap_per_instance(self, app_type: str, instance_name: str, increment: int = 1):
+        """Increment hourly API usage for an instance (resets if new hour). Instance name normalized for consistent keys.
+        Uses atomic INSERT OR REPLACE to avoid read-then-write race conditions."""
+        import datetime
+        # Normalize so write key matches read key (from settings) and counts persist across refresh
+        key = (instance_name or "Default").strip() if isinstance(instance_name, str) else "Default"
+        key = key if key else "Default"
+        current_hour = datetime.datetime.now().hour
+        with self.get_connection() as conn:
+            # Atomic upsert: if row exists and same hour, add increment; if different hour or missing, start fresh
+            conn.execute('''
+                INSERT INTO hourly_caps_per_instance (app_type, instance_name, api_hits, last_reset_hour, updated_at)
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(app_type, instance_name) DO UPDATE SET
+                    api_hits = CASE WHEN last_reset_hour = ? THEN api_hits + ? ELSE ? END,
+                    last_reset_hour = ?,
+                    updated_at = CURRENT_TIMESTAMP
+            ''', (app_type, key, increment, current_hour,
+                  current_hour, increment, increment, current_hour))
+            conn.commit()
+
+    def get_sleep_data(self, app_type: str = None) -> Dict[str, Any]:
+        """Get sleep/cycle data for an app or all apps"""
+        with self.get_connection() as conn:
+            if app_type:
+                cursor = conn.execute('''
+                    SELECT next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end 
+                    FROM sleep_data WHERE app_type = ?
+                ''', (app_type,))
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        "next_cycle_time": row[0],
+                        "cycle_lock": bool(row[1]),
+                        "last_cycle_start": row[2],
+                        "last_cycle_end": row[3]
+                    }
+                return {}
+            else:
+                cursor = conn.execute('''
+                    SELECT app_type, next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end 
+                    FROM sleep_data
+                ''')
+                return {
+                    row[0]: {
+                        "next_cycle_time": row[1],
+                        "cycle_lock": bool(row[2]),
+                        "last_cycle_start": row[3],
+                        "last_cycle_end": row[4]
+                    }
+                    for row in cursor.fetchall()
+                }
+    
+    def set_sleep_data(self, app_type: str, next_cycle_time: str = None, cycle_lock: bool = None, 
+                       last_cycle_start: str = None, last_cycle_end: str = None):
+        """Set sleep/cycle data for an app"""
+        with self.get_connection() as conn:
+            # Get current data
+            cursor = conn.execute('''
+                SELECT next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end 
+                FROM sleep_data WHERE app_type = ?
+            ''', (app_type,))
+            row = cursor.fetchone()
+            
+            if row:
+                # Update existing record with only provided values
+                current_next = row[0] if next_cycle_time is None else next_cycle_time
+                current_lock = row[1] if cycle_lock is None else cycle_lock
+                current_start = row[2] if last_cycle_start is None else last_cycle_start
+                current_end = row[3] if last_cycle_end is None else last_cycle_end
+                
+                conn.execute('''
+                    UPDATE sleep_data 
+                    SET next_cycle_time = ?, cycle_lock = ?, last_cycle_start = ?, last_cycle_end = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE app_type = ?
+                ''', (current_next, current_lock, current_start, current_end, app_type))
+            else:
+                # Insert new record
+                conn.execute('''
+                    INSERT INTO sleep_data (app_type, next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end, updated_at)
+                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (app_type, next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end))
+            
+            conn.commit()
+    
+    def get_sleep_data_per_instance(self, app_type: str, instance_name: str = None) -> Dict[str, Any]:
+        """Get sleep/cycle data for an instance or all instances of an app"""
+        with self.get_connection() as conn:
+            if instance_name is not None:
+                cursor = conn.execute('''
+                    SELECT next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end 
+                    FROM sleep_data_per_instance WHERE app_type = ? AND instance_name = ?
+                ''', (app_type, instance_name))
+                row = cursor.fetchone()
+                if row:
+                    return {
+                        "next_cycle_time": row[0],
+                        "cycle_lock": bool(row[1]),
+                        "last_cycle_start": row[2],
+                        "last_cycle_end": row[3]
+                    }
+                return {}
+            else:
+                cursor = conn.execute('''
+                    SELECT instance_name, next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end 
+                    FROM sleep_data_per_instance WHERE app_type = ?
+                ''', (app_type,))
+                return {
+                    row[0]: {
+                        "next_cycle_time": row[1],
+                        "cycle_lock": bool(row[2]),
+                        "last_cycle_start": row[3],
+                        "last_cycle_end": row[4]
+                    }
+                    for row in cursor.fetchall()
+                }
+    
+    def set_sleep_data_per_instance(self, app_type: str, instance_name: str, next_cycle_time: str = None,
+                                    cycle_lock: bool = None, last_cycle_start: str = None, last_cycle_end: str = None):
+        """Set sleep/cycle data for an instance"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('''
+                SELECT next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end 
+                FROM sleep_data_per_instance WHERE app_type = ? AND instance_name = ?
+            ''', (app_type, instance_name))
+            row = cursor.fetchone()
+            if row:
+                current_next = row[0] if next_cycle_time is None else next_cycle_time
+                current_lock = row[1] if cycle_lock is None else cycle_lock
+                current_start = row[2] if last_cycle_start is None else last_cycle_start
+                current_end = row[3] if last_cycle_end is None else last_cycle_end
+                conn.execute('''
+                    UPDATE sleep_data_per_instance 
+                    SET next_cycle_time = ?, cycle_lock = ?, last_cycle_start = ?, last_cycle_end = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE app_type = ? AND instance_name = ?
+                ''', (current_next, current_lock, current_start, current_end, app_type, instance_name))
+            else:
+                conn.execute('''
+                    INSERT INTO sleep_data_per_instance (app_type, instance_name, next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ''', (app_type, instance_name, next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end))
+            conn.commit()
+    
+    def get_all_sleep_data_per_instance(self) -> Dict[str, Dict[str, Dict[str, Any]]]:
+        """Get sleep/cycle data for all instances (all apps). Returns { app_type: { instance_name: data } }."""
+        with self.get_connection() as conn:
+            cursor = conn.execute('''
+                SELECT app_type, instance_name, next_cycle_time, cycle_lock, last_cycle_start, last_cycle_end
+                FROM sleep_data_per_instance
+            ''')
+            result = {}
+            for row in cursor.fetchall():
+                app_type, instance_name = row[0], row[1]
+                if app_type not in result:
+                    result[app_type] = {}
+                result[app_type][instance_name] = {
+                    "next_cycle_time": row[2],
+                    "cycle_lock": bool(row[3]),
+                    "last_cycle_start": row[4],
+                    "last_cycle_end": row[5]
+                }
+            return result
+    
+    def get_swaparr_stats(self) -> Dict[str, int]:
+        """Get Swaparr statistics"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT stat_key, stat_value FROM swaparr_stats')
+            return {row[0]: row[1] for row in cursor.fetchall()}
+    
+    def set_swaparr_stat(self, stat_key: str, value: int):
+        """Set a Swaparr statistic value"""
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO swaparr_stats (stat_key, stat_value, updated_at)
+                VALUES (?, ?, CURRENT_TIMESTAMP)
+            ''', (stat_key, value))
+            conn.commit()
+    
+    def increment_swaparr_stat(self, stat_key: str, increment: int = 1):
+        """Increment a Swaparr statistic"""
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO swaparr_stats (stat_key, stat_value, updated_at)
+                VALUES (?, COALESCE((SELECT stat_value FROM swaparr_stats WHERE stat_key = ?), 0) + ?, CURRENT_TIMESTAMP)
+            ''', (stat_key, stat_key, increment))
+            conn.commit()
+
+    # History methods moved to manager_database.py - Sniparr Manager functionality
+
+    # Scheduler methods
+    def get_schedules(self, app_type: str = None) -> Dict[str, List[Dict[str, Any]]]:
+        """Get all schedules, optionally filtered by app type"""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            
+            if app_type:
+                cursor = conn.execute('''
+                    SELECT * FROM schedules 
+                    WHERE app_type = ? 
+                    ORDER BY time_hour, time_minute
+                ''', (app_type,))
+            else:
+                cursor = conn.execute('''
+                    SELECT * FROM schedules 
+                    ORDER BY app_type, time_hour, time_minute
+                ''')
+            
+            schedules = {}
+            for row in cursor.fetchall():
+                schedule_data = {
+                    'id': row['id'],
+                    'action': row['action'],
+                    'time': f"{row['time_hour']:02d}:{row['time_minute']:02d}",
+                    'days': json.loads(row['days']) if row['days'] else [],
+                    'app': row['app_instance'],
+                    'appType': row['app_type'],
+                    'enabled': bool(row['enabled'])
+                }
+                
+                if row['app_type'] not in schedules:
+                    schedules[row['app_type']] = []
+                schedules[row['app_type']].append(schedule_data)
+            
+            # Ensure all app types are present even if empty
+            for app in ['global', 'sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros', 'movie_snipe', 'tv_snipe']:
+                if app not in schedules:
+                    schedules[app] = []
+            
+            return schedules
+    
+    def save_schedules(self, schedules_data: Dict[str, List[Dict[str, Any]]]):
+        """Save all schedules to database (replaces existing schedules)"""
+        with self.get_connection() as conn:
+            # Clear existing schedules
+            conn.execute('DELETE FROM schedules')
+            
+            # Insert new schedules
+            for app_type, schedules_list in schedules_data.items():
+                for schedule in schedules_list:
+                    # Parse time
+                    time_str = schedule.get('time', '00:00')
+                    if isinstance(time_str, dict):
+                        time_hour = time_str.get('hour', 0)
+                        time_minute = time_str.get('minute', 0)
+                    else:
+                        try:
+                            time_parts = str(time_str).split(':')
+                            time_hour = int(time_parts[0])
+                            time_minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+                        except (ValueError, IndexError):
+                            time_hour = 0
+                            time_minute = 0
+                    
+                    # Convert days to JSON string
+                    days_json = json.dumps(schedule.get('days', []))
+                    
+                    conn.execute('''
+                        INSERT INTO schedules 
+                        (id, app_type, action, time_hour, time_minute, days, app_instance, enabled, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    ''', (
+                        schedule.get('id', f"{app_type}_{int(datetime.now().timestamp())}"),
+                        app_type,
+                        schedule.get('action', 'pause'),
+                        time_hour,
+                        time_minute,
+                        days_json,
+                        schedule.get('app', 'global'),
+                        schedule.get('enabled', True)
+                    ))
+            
+            conn.commit()
+            # Schedules saved - no need to log every successful save
+    
+    def add_schedule(self, schedule_data: Dict[str, Any]) -> str:
+        """Add a single schedule to database"""
+        schedule_id = schedule_data.get('id', f"{schedule_data.get('appType', 'global')}_{int(datetime.now().timestamp())}")
+        
+        # Parse time
+        time_str = schedule_data.get('time', '00:00')
+        if isinstance(time_str, dict):
+            time_hour = time_str.get('hour', 0)
+            time_minute = time_str.get('minute', 0)
+        else:
+            try:
+                time_parts = str(time_str).split(':')
+                time_hour = int(time_parts[0])
+                time_minute = int(time_parts[1]) if len(time_parts) > 1 else 0
+            except (ValueError, IndexError):
+                time_hour = 0
+                time_minute = 0
+        
+        # Convert days to JSON string
+        days_json = json.dumps(schedule_data.get('days', []))
+        
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT OR REPLACE INTO schedules 
+                (id, app_type, action, time_hour, time_minute, days, app_instance, enabled, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+            ''', (
+                schedule_id,
+                schedule_data.get('appType', 'global'),
+                schedule_data.get('action', 'pause'),
+                time_hour,
+                time_minute,
+                days_json,
+                schedule_data.get('app', 'global'),
+                schedule_data.get('enabled', True)
+            ))
+            conn.commit()
+            
+        logger.info(f"Added/updated schedule {schedule_id}")
+        return schedule_id
+    
+    def delete_schedule(self, schedule_id: str):
+        """Delete a schedule from database"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('DELETE FROM schedules WHERE id = ?', (schedule_id,))
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                logger.info(f"Deleted schedule {schedule_id}")
+            else:
+                logger.warning(f"Schedule {schedule_id} not found for deletion")
+    
+    def update_schedule_enabled(self, schedule_id: str, enabled: bool):
+        """Update the enabled status of a schedule"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('''
+                UPDATE schedules 
+                SET enabled = ?, updated_at = CURRENT_TIMESTAMP 
+                WHERE id = ?
+            ''', (enabled, schedule_id))
+            conn.commit()
+            
+            if cursor.rowcount > 0:
+                logger.info(f"Updated schedule {schedule_id} enabled status to {enabled}")
+            else:
+                logger.warning(f"Schedule {schedule_id} not found for update")
+
+    # State Management Methods
+    def get_state_data(self, app_type: str, state_type: str) -> Any:
+        """Get state data for a specific app type and state type"""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                'SELECT state_data FROM state_data WHERE app_type = ? AND state_type = ?',
+                (app_type, state_type)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                try:
+                    return json.loads(row[0])
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse state data for {app_type}/{state_type}: {e}")
+                    return None
+            return None
+
+    def set_state_data(self, app_type: str, state_type: str, data: Any):
+        """Set state data for a specific app type and state type"""
+        data_json = json.dumps(data)
+        with self.get_connection() as conn:
+            conn.execute(
+                '''INSERT OR REPLACE INTO state_data 
+                   (app_type, state_type, state_data, updated_at) 
+                   VALUES (?, ?, ?, CURRENT_TIMESTAMP)''',
+                (app_type, state_type, data_json)
+            )
+            conn.commit()
+            logger.debug(f"Set state data for {app_type}/{state_type}")
+
+    def get_processed_ids_state(self, app_type: str, state_type: str) -> List[int]:
+        """Get processed IDs for a specific app type and state type (missing/upgrades)"""
+        data = self.get_state_data(app_type, state_type)
+        if data is None:
+            return []
+        if isinstance(data, list):
+            return data
+        logger.error(f"Invalid processed IDs data type for {app_type}/{state_type}: {type(data)}")
+        return []
+
+    def set_processed_ids_state(self, app_type: str, state_type: str, ids: List[int]):
+        """Set processed IDs for a specific app type and state type (missing/upgrades)"""
+        self.set_state_data(app_type, state_type, ids)
+
+    def add_processed_id_state(self, app_type: str, state_type: str, item_id: int):
+        """Add a single processed ID to a specific app type and state type"""
+        processed_ids = self.get_processed_ids_state(app_type, state_type)
+        if item_id not in processed_ids:
+            processed_ids.append(item_id)
+            self.set_processed_ids_state(app_type, state_type, processed_ids)
+
+    def clear_processed_ids_state(self, app_type: str):
+        """Clear all processed IDs for a specific app type"""
+        self.set_processed_ids_state(app_type, "processed_missing", [])
+        self.set_processed_ids_state(app_type, "processed_upgrades", [])
+
+    def get_last_reset_time_state(self, app_type: str) -> Optional[str]:
+        """Get the last reset time for a specific app type"""
+        return self.get_state_data(app_type, "last_reset")
+
+    def set_last_reset_time_state(self, app_type: str, reset_time: str):
+        """Set the last reset time for a specific app type"""
+        self.set_state_data(app_type, "last_reset", reset_time)
+
+    # Swaparr State Management Methods
+    def get_swaparr_state_data(self, app_name: str, state_type: str) -> Any:
+        """Get Swaparr state data for a specific app name and state type"""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                'SELECT state_data FROM swaparr_state WHERE app_name = ? AND state_type = ?',
+                (app_name, state_type)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                try:
+                    return json.loads(row[0])
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse Swaparr state data for {app_name}/{state_type}: {e}")
+                    return None
+            return None
+
+    def set_swaparr_state_data(self, app_name: str, state_type: str, data: Any):
+        """Set Swaparr state data for a specific app name and state type"""
+        data_json = json.dumps(data)
+        with self.get_connection() as conn:
+            conn.execute(
+                '''INSERT OR REPLACE INTO swaparr_state 
+                   (app_name, state_type, state_data, updated_at) 
+                   VALUES (?, ?, ?, CURRENT_TIMESTAMP)''',
+                (app_name, state_type, data_json)
+            )
+            conn.commit()
+            logger.debug(f"Set Swaparr state data for {app_name}/{state_type}")
+
+    def get_swaparr_strike_data(self, app_name: str) -> Dict[str, Any]:
+        """Get strike data for a specific Swaparr app"""
+        data = self.get_swaparr_state_data(app_name, "strikes")
+        return data if data is not None else {}
+
+    def set_swaparr_strike_data(self, app_name: str, strike_data: Dict[str, Any]):
+        """Set strike data for a specific Swaparr app"""
+        self.set_swaparr_state_data(app_name, "strikes", strike_data)
+
+    def get_swaparr_removed_items(self, app_name: str) -> Dict[str, Any]:
+        """Get removed items data for a specific Swaparr app"""
+        data = self.get_swaparr_state_data(app_name, "removed_items")
+        return data if data is not None else {}
+    
+    def set_swaparr_removed_items(self, app_name: str, removed_items: Dict[str, Any]):
+        """Set removed items data for a specific Swaparr app"""
+        self.set_swaparr_state_data(app_name, "removed_items", removed_items)
+
+    # Reset Request Management Methods (replaces file-based reset system)
+    
+    def create_reset_request(self, app_type: str, instance_name: Optional[str] = None) -> bool:
+        """Create a reset request for an app or (app, instance). instance_name=None for swaparr/single-app."""
+        try:
+            with self.get_connection() as conn:
+                ts = int(time.time())
+                if instance_name is not None:
+                    conn.execute('''
+                        INSERT INTO reset_requests_per_instance (app_type, instance_name, timestamp, processed)
+                        VALUES (?, ?, ?, 0)
+                    ''', (app_type, instance_name, ts))
+                else:
+                    conn.execute('''
+                        INSERT OR REPLACE INTO reset_requests (app_type, timestamp, processed)
+                        VALUES (?, ?, 0)
+                    ''', (app_type, ts))
+                conn.commit()
+                logger.info(f"Created reset request for {app_type}" + (f" instance {instance_name}" if instance_name else ""))
+                return True
+        except Exception as e:
+            logger.error(f"Error creating reset request for {app_type}: {e}")
+            return False
+    
+    def get_pending_reset_request(self, app_type: str, instance_name: Optional[str] = None) -> Optional[int]:
+        """Check if there's a pending reset request for an app or (app, instance). instance_name=None for swaparr."""
+        with self.get_connection() as conn:
+            if instance_name is not None:
+                cursor = conn.execute('''
+                    SELECT timestamp FROM reset_requests_per_instance 
+                    WHERE app_type = ? AND instance_name = ? AND processed = 0
+                    ORDER BY timestamp DESC LIMIT 1
+                ''', (app_type, instance_name))
+            else:
+                cursor = conn.execute('''
+                    SELECT timestamp FROM reset_requests 
+                    WHERE app_type = ? AND processed = 0
+                    ORDER BY timestamp DESC LIMIT 1
+                ''', (app_type,))
+            row = cursor.fetchone()
+            return row[0] if row else None
+    
+    def mark_reset_request_processed(self, app_type: str, instance_name: Optional[str] = None) -> bool:
+        """Mark a reset request as processed. instance_name=None for swaparr."""
+        try:
+            with self.get_connection() as conn:
+                if instance_name is not None:
+                    conn.execute('''
+                        UPDATE reset_requests_per_instance 
+                        SET processed = 1, processed_at = CURRENT_TIMESTAMP
+                        WHERE app_type = ? AND instance_name = ? AND processed = 0
+                    ''', (app_type, instance_name))
+                else:
+                    conn.execute('''
+                        UPDATE reset_requests 
+                        SET processed = 1, processed_at = CURRENT_TIMESTAMP
+                        WHERE app_type = ? AND processed = 0
+                    ''', (app_type,))
+                conn.commit()
+                logger.info(f"Marked reset request as processed for {app_type}" + (f" instance {instance_name}" if instance_name else ""))
+                return True
+        except Exception as e:
+            logger.error(f"Error marking reset request as processed for {app_type}: {e}")
+            return False
+
+    # User Management Methods
+    def user_exists(self) -> bool:
+        """Check if any user exists in the database"""
+        with self.get_connection() as conn:
+            cursor = conn.execute('SELECT COUNT(*) FROM users')
+            count = cursor.fetchone()[0]
+            return count > 0
+    
+    def get_user_by_username(self, username: str) -> Optional[Dict[str, Any]]:
+        """Get user data by username"""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                'SELECT * FROM users WHERE username = ?',
+                (username,)
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                user_data = dict(row)
+                # Parse JSON fields
+                if user_data.get('plex_user_data'):
+                    try:
+                        user_data['plex_user_data'] = json.loads(user_data['plex_user_data'])
+                    except json.JSONDecodeError:
+                        user_data['plex_user_data'] = None
+                return user_data
+            return None
+    
+    def get_first_user(self) -> Optional[Dict[str, Any]]:
+        """Get the first user from the database (for bypass modes)"""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute(
+                'SELECT * FROM users ORDER BY created_at ASC LIMIT 1'
+            )
+            row = cursor.fetchone()
+            
+            if row:
+                user_data = dict(row)
+                # Parse JSON fields
+                if user_data.get('plex_user_data'):
+                    try:
+                        user_data['plex_user_data'] = json.loads(user_data['plex_user_data'])
+                    except json.JSONDecodeError:
+                        user_data['plex_user_data'] = None
+                return user_data
+            return None
+    
+    def _password_looks_hashed(self, value: str) -> bool:
+        """True if value looks like a hash (bcrypt or salt:hash). Do not store plaintext."""
+        if not value or len(value) < 10:
+            return False
+        if value.startswith("$2") and value.count("$") >= 3:
+            return True
+        if ":" in value and len(value) > 40:
+            return True
+        return False
+
+    def create_user(self, username: str, password: str, two_fa_enabled: bool = False,
+                   two_fa_secret: str = None, plex_token: str = None,
+                   plex_user_data: Dict[str, Any] = None) -> bool:
+        """Create a new user. Passwords are stored hashed; plaintext is hashed before storage.
+        
+        Uses FULL synchronous mode to guarantee durability — user creation must survive crashes.
+        """
+        try:
+            from src.primary.auth import hash_password
+            store_password = password
+            if not self._password_looks_hashed(store_password):
+                store_password = hash_password(store_password)
+                logger.debug("Hashed password before create_user storage")
+
+            plex_data_json = json.dumps(plex_user_data) if plex_user_data else None
+
+            with self.get_connection() as conn:
+                # Use FULL sync for critical user data — ensures write is on disk before returning
+                conn.execute('PRAGMA synchronous = FULL')
+                conn.execute('''
+                    INSERT INTO users (username, password, two_fa_enabled, two_fa_secret,
+                                     plex_token, plex_user_data, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+                ''', (username, store_password, two_fa_enabled, two_fa_secret, plex_token, plex_data_json))
+                conn.commit()
+                # Force WAL checkpoint to merge user data into main DB immediately
+                conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                # Restore normal sync mode
+                conn.execute('PRAGMA synchronous = NORMAL')
+                logger.info(f"Created user: {username} (durability checkpoint completed)")
+                return True
+        except Exception as e:
+            logger.error(f"Error creating user {username}: {e}")
+            return False
+    
+    def update_user_password(self, username: str, new_password: str) -> bool:
+        """Update user password. Plaintext is hashed before storage."""
+        try:
+            from src.primary.auth import hash_password
+            store_password = new_password
+            if not self._password_looks_hashed(store_password):
+                store_password = hash_password(store_password)
+                logger.debug("Hashed password before update_user_password storage")
+
+            with self.get_connection() as conn:
+                conn.execute('''
+                    UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP
+                    WHERE username = ?
+                ''', (store_password, username))
+                conn.commit()
+                logger.info(f"Updated password for user: {username}")
+                return True
+        except Exception as e:
+            logger.error(f"Error updating password for user {username}: {e}")
+            return False
+    
+    def update_user_username(self, old_username: str, new_username: str) -> bool:
+        """Update username"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute('''
+                    UPDATE users SET username = ?, updated_at = CURRENT_TIMESTAMP 
+                    WHERE username = ?
+                ''', (new_username, old_username))
+                conn.commit()
+                logger.info(f"Updated username from {old_username} to {new_username}")
+                return True
+        except Exception as e:
+            logger.error(f"Error updating username from {old_username} to {new_username}: {e}")
+            return False
+    
+    def update_user_2fa(self, username: str, two_fa_enabled: bool, two_fa_secret: str = None) -> bool:
+        """Update user 2FA settings"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute('''
+                    UPDATE users SET two_fa_enabled = ?, two_fa_secret = ?, 
+                                   updated_at = CURRENT_TIMESTAMP 
+                    WHERE username = ?
+                ''', (two_fa_enabled, two_fa_secret, username))
+                conn.commit()
+                logger.info(f"Updated 2FA settings for user: {username}")
+                return True
+        except Exception as e:
+            logger.error(f"Error updating 2FA for user {username}: {e}")
+            return False
+    
+    def update_user_temp_2fa_secret(self, username: str, temp_2fa_secret: str = None) -> bool:
+        """Update user temporary 2FA secret"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute('''
+                    UPDATE users SET temp_2fa_secret = ?, updated_at = CURRENT_TIMESTAMP 
+                    WHERE username = ?
+                ''', (temp_2fa_secret, username))
+                conn.commit()
+                logger.info(f"Updated temporary 2FA secret for user: {username}")
+                return True
+        except Exception as e:
+            logger.error(f"Error updating temporary 2FA secret for user {username}: {e}")
+            return False
+    
+    def update_user_plex(self, username: str, plex_token: str = None, 
+                        plex_user_data: Dict[str, Any] = None) -> bool:
+        """Update user Plex settings"""
+        try:
+            import time
+            plex_data_json = json.dumps(plex_user_data) if plex_user_data else None
+            
+            # Set the linked timestamp when plex_token is provided (linking account)
+            plex_linked_at = int(time.time()) if plex_token else None
+            
+            with self.get_connection() as conn:
+                conn.execute('''
+                    UPDATE users SET plex_token = ?, plex_user_data = ?, 
+                                   plex_linked_at = ?, updated_at = CURRENT_TIMESTAMP 
+                    WHERE username = ?
+                ''', (plex_token, plex_data_json, plex_linked_at, username))
+                conn.commit()
+                logger.info(f"Updated Plex settings for user: {username}")
+                return True
+        except Exception as e:
+            logger.error(f"Error updating Plex settings for user {username}: {e}")
+            return False
+    
+    def has_users_with_plex(self) -> bool:
+        """Check if any users have Plex authentication configured"""
+        try:
+            with self.get_connection() as conn:
+                cursor = conn.execute('''
+                    SELECT COUNT(*) FROM users WHERE plex_token IS NOT NULL AND plex_token != ''
+                ''')
+                count = cursor.fetchone()[0]
+                return count > 0
+        except Exception as e:
+            logger.error(f"Error checking for Plex users: {e}")
+            return False
+
+    # Recovery Key Methods
+    def generate_recovery_key(self, username: str) -> Optional[str]:
+        """Generate a new recovery key for a user"""
+        import hashlib
+        import secrets
+        
+        # Expanded word lists for better entropy
+        adjectives = [
+            'ocean', 'storm', 'frost', 'light', 'dark', 'swift', 'calm', 'wild', 'bright', 'deep',
+            'lunar', 'solar', 'amber', 'coral', 'ivory', 'azure', 'cedar', 'maple', 'polar', 'tidal',
+            'rapid', 'vivid', 'noble', 'prime', 'stark', 'brave', 'crisp', 'grand', 'keen', 'bold'
+        ]
+        nouns = [
+            'tower', 'bridge', 'quest', 'dream', 'flame', 'river', 'mountain', 'crystal', 'shadow', 'star',
+            'falcon', 'canyon', 'harbor', 'meadow', 'summit', 'valley', 'beacon', 'cipher', 'prism', 'anvil',
+            'atlas', 'delta', 'forge', 'haven', 'nexus', 'orbit', 'pulse', 'spark', 'vault', 'zenith'
+        ]
+        
+        try:
+            # Generate a human-readable recovery key like "ocean-light-tower-51"
+            # Uses secrets module for cryptographically secure randomness
+            adj = secrets.choice(adjectives)
+            noun1 = secrets.choice(nouns)
+            noun2 = secrets.choice(nouns)
+            number = secrets.randbelow(90) + 10  # 10-99
+            recovery_key = f"{adj}-{noun1}-{noun2}-{number}"
+            
+            # Hash the recovery key for secure storage
+            recovery_key_hash = hashlib.sha256(recovery_key.encode()).hexdigest()
+            
+            with self.get_connection() as conn:
+                conn.execute('''
+                    UPDATE users SET recovery_key = ?, updated_at = CURRENT_TIMESTAMP 
+                    WHERE username = ?
+                ''', (recovery_key_hash, username))
+                conn.commit()
+                logger.info(f"Generated new recovery key for user: {username}")
+                
+                # Return the plain text recovery key (only time it's shown)
+                return recovery_key
+        except Exception as e:
+            logger.error(f"Error generating recovery key for user {username}: {e}")
+            return None
+    
+    def verify_recovery_key(self, recovery_key: str) -> Optional[str]:
+        """Verify a recovery key and return the username if valid"""
+        import hashlib
+        
+        try:
+            # Hash the provided recovery key
+            recovery_key_hash = hashlib.sha256(recovery_key.encode()).hexdigest()
+            
+            with self.get_connection() as conn:
+                cursor = conn.execute(
+                    'SELECT username FROM users WHERE recovery_key = ?',
+                    (recovery_key_hash,)
+                )
+                row = cursor.fetchone()
+                
+                if row:
+                    logger.info(f"Recovery key verified for user: {row[0]}")
+                    return row[0]
+                else:
+                    logger.warning(f"Invalid recovery key attempted")
+                    return None
+        except Exception as e:
+            logger.error(f"Error verifying recovery key: {e}")
+            return None
+    
+    def clear_recovery_key(self, username: str) -> bool:
+        """Clear the recovery key for a user (after password reset)"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute('''
+                    UPDATE users SET recovery_key = NULL, updated_at = CURRENT_TIMESTAMP 
+                    WHERE username = ?
+                ''', (username,))
+                conn.commit()
+                logger.info(f"Cleared recovery key for user: {username}")
+                return True
+        except Exception as e:
+            logger.error(f"Error clearing recovery key for user {username}: {e}")
+            return False
+
+    def check_recovery_key_rate_limit(self, ip_address: str) -> Dict[str, Any]:
+        """Check if IP address is rate limited for recovery key attempts"""
+        try:
+            with self.get_connection() as conn:
+                conn.row_factory = sqlite3.Row
+                cursor = conn.execute('''
+                    SELECT failed_attempts, locked_until, last_attempt 
+                    FROM recovery_key_rate_limit 
+                    WHERE ip_address = ?
+                ''', (ip_address,))
+                row = cursor.fetchone()
+                
+                if not row:
+                    return {"locked": False, "failed_attempts": 0}
+                
+                # Convert locked_until to datetime if it exists
+                locked_until = None
+                if row['locked_until']:
+                    try:
+                        from datetime import datetime
+                        locked_until = datetime.fromisoformat(row['locked_until'])
+                        # Check if lockout has expired
+                        if datetime.now() >= locked_until:
+                            # Clear the lockout
+                            conn.execute('''
+                                UPDATE recovery_key_rate_limit 
+                                SET failed_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP
+                                WHERE ip_address = ?
+                            ''', (ip_address,))
+                            conn.commit()
+                            return {"locked": False, "failed_attempts": 0}
+                    except ValueError:
+                        # Invalid datetime format, treat as expired
+                        conn.execute('''
+                            UPDATE recovery_key_rate_limit 
+                            SET failed_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP
+                            WHERE ip_address = ?
+                        ''', (ip_address,))
+                        conn.commit()
+                        return {"locked": False, "failed_attempts": 0}
+                
+                return {
+                    "locked": locked_until is not None and datetime.now() < locked_until,
+                    "failed_attempts": row['failed_attempts'],
+                    "locked_until": locked_until.isoformat() if locked_until else None
+                }
+        except Exception as e:
+            logger.error(f"Error checking recovery key rate limit for IP {ip_address}: {e}")
+            return {"locked": False, "failed_attempts": 0}
+
+    def record_recovery_key_attempt(self, ip_address: str, username: str = None, success: bool = False) -> Dict[str, Any]:
+        """Record a recovery key attempt and apply rate limiting if needed"""
+        try:
+            from datetime import datetime, timedelta
+            
+            with self.get_connection() as conn:
+                if success:
+                    # Clear rate limiting on successful attempt
+                    conn.execute('''
+                        UPDATE recovery_key_rate_limit 
+                        SET failed_attempts = 0, locked_until = NULL, updated_at = CURRENT_TIMESTAMP
+                        WHERE ip_address = ?
+                    ''', (ip_address,))
+                    conn.commit()
+                    return {"locked": False, "failed_attempts": 0}
+                
+                # Handle failed attempt
+                cursor = conn.execute('''
+                    SELECT failed_attempts FROM recovery_key_rate_limit WHERE ip_address = ?
+                ''', (ip_address,))
+                row = cursor.fetchone()
+                
+                if row:
+                    # Update existing record
+                    new_failed_attempts = row[0] + 1
+                    locked_until = None
+                    
+                    # Lock for 15 minutes after 3 failed attempts
+                    if new_failed_attempts >= 3:
+                        locked_until = datetime.now() + timedelta(minutes=15)
+                        locked_until_str = locked_until.isoformat()
+                    else:
+                        locked_until_str = None
+                    
+                    conn.execute('''
+                        UPDATE recovery_key_rate_limit 
+                        SET failed_attempts = ?, locked_until = ?, username = ?, 
+                            last_attempt = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+                        WHERE ip_address = ?
+                    ''', (new_failed_attempts, locked_until_str, username, ip_address))
+                else:
+                    # Create new record
+                    new_failed_attempts = 1
+                    conn.execute('''
+                        INSERT INTO recovery_key_rate_limit 
+                        (ip_address, username, failed_attempts, last_attempt)
+                        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                    ''', (ip_address, username, new_failed_attempts))
+                
+                conn.commit()
+                
+                locked = new_failed_attempts >= 3
+                return {
+                    "locked": locked,
+                    "failed_attempts": new_failed_attempts,
+                    "locked_until": locked_until.isoformat() if locked else None
+                }
+                
+        except Exception as e:
+            logger.error(f"Error recording recovery key attempt for IP {ip_address}: {e}")
+            return {"locked": False, "failed_attempts": 0}
+
+    def cleanup_expired_rate_limits(self):
+        """Clean up expired rate limit entries (older than 24 hours)"""
+        try:
+            from datetime import datetime, timedelta
+            cutoff_time = datetime.now() - timedelta(hours=24)
+            
+            with self.get_connection() as conn:
+                cursor = conn.execute('''
+                    DELETE FROM recovery_key_rate_limit 
+                    WHERE last_attempt < ? AND (locked_until IS NULL OR locked_until < CURRENT_TIMESTAMP)
+                ''', (cutoff_time.isoformat(),))
+                deleted_count = cursor.rowcount
+                conn.commit()
+                
+                if deleted_count > 0:
+                    logger.debug(f"Cleaned up {deleted_count} expired recovery key rate limit entries")
+                    
+        except Exception as e:
+            logger.error(f"Error cleaning up expired rate limits: {e}")
+
+    def get_sponsors(self) -> List[Dict[str, Any]]:
+        """Get all sponsors from database"""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            cursor = conn.execute('''
+                SELECT login, name, avatar_url, url, tier, monthly_amount, category, updated_at
+                FROM sponsors 
+                ORDER BY monthly_amount DESC, name ASC
+            ''')
+            return [dict(row) for row in cursor.fetchall()]
+    
+    def save_sponsors(self, sponsors_data: List[Dict[str, Any]]):
+        """Save sponsors data to database, replacing existing data"""
+        with self.get_connection() as conn:
+            # Clear existing sponsors
+            conn.execute('DELETE FROM sponsors')
+            
+            # Insert new sponsors
+            for sponsor in sponsors_data:
+                conn.execute('''
+                    INSERT INTO sponsors (login, name, avatar_url, url, tier, monthly_amount, category)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (
+                    sponsor.get('login', ''),
+                    sponsor.get('name', sponsor.get('login', 'Unknown')),
+                    sponsor.get('avatarUrl', ''),
+                    sponsor.get('url', '#'),
+                    sponsor.get('tier', 'Supporter'),
+                    sponsor.get('monthlyAmount', 0),
+                    sponsor.get('category', 'past')
+                ))
+            
+            logger.info(f"Saved {len(sponsors_data)} sponsors to database")
+    
+    # Hunt History/Manager Database Methods
+    def add_hunt_history_entry(self, app_type: str, instance_name: str, media_id: str, 
+                         processed_info: str, operation_type: str = "missing", 
+                         discovered: bool = False, date_time: int = None) -> Dict[str, Any]:
+        """Add a new hunt history entry to the database"""
+        if date_time is None:
+            date_time = int(time.time())
+        
+        date_time_readable = datetime.fromtimestamp(date_time).strftime('%Y-%m-%d %H:%M:%S')
+        
+        with self.get_connection() as conn:
+            cursor = conn.execute('''
+                INSERT INTO hunt_history 
+                (app_type, instance_name, media_id, processed_info, operation_type, discovered, date_time, date_time_readable)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (app_type, instance_name, media_id, processed_info, operation_type, discovered, date_time, date_time_readable))
+            
+            entry_id = cursor.lastrowid
+            conn.commit()
+            
+            # Return the created entry
+            entry = {
+                "id": entry_id,
+                "app_type": app_type,
+                "instance_name": instance_name,
+                "media_id": media_id,
+                "processed_info": processed_info,
+                "operation_type": operation_type,
+                "discovered": discovered,
+                "date_time": date_time,
+                "date_time_readable": date_time_readable
+            }
+            
+            logger.info(f"Added hunt history entry for {app_type}-{instance_name}: {processed_info}")
+            return entry
+    
+    def get_hunt_history(self, app_type: str = None, search_query: str = None, 
+                   page: int = 1, page_size: int = 20, instance_name: str = None) -> Dict[str, Any]:
+        """Get hunt history entries with pagination and filtering"""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            
+            # Build WHERE clause
+            where_conditions = []
+            params = []
+            
+            if app_type and app_type != "all":
+                where_conditions.append("app_type = ?")
+                params.append(app_type)
+            
+            if instance_name is not None and instance_name != "":
+                where_conditions.append("instance_name = ?")
+                params.append(str(instance_name))
+            
+            if search_query:
+                where_conditions.append("(processed_info LIKE ? OR media_id LIKE ?)")
+                params.extend([f"%{search_query}%", f"%{search_query}%"])
+            
+            where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+            
+            # Get total count
+            count_query = f"SELECT COUNT(*) FROM hunt_history {where_clause}"
+            cursor = conn.execute(count_query, params)
+            total_entries = cursor.fetchone()[0]
+            
+            # Calculate pagination
+            total_pages = max(1, (total_entries + page_size - 1) // page_size)
+            offset = (page - 1) * page_size
+            
+            # Get entries
+            entries_query = f"""
+                SELECT * FROM hunt_history {where_clause}
+                ORDER BY date_time DESC
+                LIMIT ? OFFSET ?
+            """
+            cursor = conn.execute(entries_query, params + [page_size, offset])
+            
+            entries = []
+            current_time = int(time.time())
+            
+            for row in cursor.fetchall():
+                entry = dict(row)
+                # Calculate "how long ago"
+                seconds_ago = current_time - entry["date_time"]
+                entry["how_long_ago"] = self._format_time_ago(seconds_ago)
+                entries.append(entry)
+            
+            return {
+                "entries": entries,
+                "total_entries": total_entries,
+                "total_pages": total_pages,
+                "current_page": page
+            }
+
+    def handle_instance_rename(self, app_type: str, old_instance_name: str, new_instance_name: str) -> bool:
+        """
+        No-op for display-name renames: history is keyed by instance_id, so renaming in the UI
+        does not require updating hunt_history. Kept for API compatibility with history_manager.
+        """
+        if old_instance_name == new_instance_name:
+            return True
+        # Optional: if any rows were still keyed by old display name (pre-migration), could UPDATE here.
+        # With instance_id migration, no rows are keyed by display name, so nothing to do.
+        return True
+
+    def clear_hunt_history(self, app_type: str = None):
+        """Clear hunt history entries"""
+        with self.get_connection() as conn:
+            if app_type and app_type != "all":
+                conn.execute("DELETE FROM hunt_history WHERE app_type = ?", (app_type,))
+                logger.info(f"Cleared hunt history for {app_type}")
+            else:
+                conn.execute("DELETE FROM hunt_history")
+                logger.info("Cleared all hunt history")
+            conn.commit()
+
+    def _format_time_ago(self, seconds_ago: int) -> str:
+        """Format seconds into human-readable time ago string"""
+        if seconds_ago < 60:
+            return f"{seconds_ago} seconds ago"
+        elif seconds_ago < 3600:
+            minutes = seconds_ago // 60
+            return f"{minutes} minute{'s' if minutes != 1 else ''} ago"
+        elif seconds_ago < 86400:
+            hours = seconds_ago // 3600
+            return f"{hours} hour{'s' if hours != 1 else ''} ago"
+        else:
+            days = seconds_ago // 86400
+            return f"{days} day{'s' if days != 1 else ''} ago"
+
+    def save_setup_progress(self, progress_data: dict) -> bool:
+        """Save setup progress data to database"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute("""
+                    INSERT OR REPLACE INTO general_settings (setting_key, setting_value, setting_type) 
+                    VALUES ('setup_progress', ?, 'json')
+                """, (json.dumps(progress_data),))
+            return True
+        except Exception as e:
+            logger.error(f"Failed to save setup progress: {e}")
+            return False
+    
+    def get_setup_progress(self) -> dict:
+        """Get setup progress data from database"""
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute(
+                    "SELECT setting_value FROM general_settings WHERE setting_key = 'setup_progress'"
+                ).fetchone()
+                
+                if result:
+                    return json.loads(result[0])
+                else:
+                    return {
+                        'current_step': 1,
+                        'completed_steps': [],
+                        'account_created': False,
+                        'two_factor_enabled': False,
+                        'plex_setup_done': False,
+                        'auth_mode_selected': False,
+                        'recovery_key_generated': False,
+                        'timestamp': datetime.now().isoformat()
+                    }
+        except Exception as e:
+            logger.error(f"Failed to get setup progress: {e}")
+            return {
+                'current_step': 1,
+                'completed_steps': [],
+                'account_created': False,
+                'two_factor_enabled': False,
+                'plex_setup_done': False,
+                'auth_mode_selected': False,
+                'recovery_key_generated': False,
+                'timestamp': datetime.now().isoformat()
+            }
+    
+    def clear_setup_progress(self) -> bool:
+        """Clear setup progress data from database (called when setup is complete)"""
+        try:
+            with self.get_connection() as conn:
+                conn.execute(
+                    "DELETE FROM general_settings WHERE setting_key = 'setup_progress'"
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to clear setup progress: {e}")
+            return False
+    
+    def is_setup_in_progress(self) -> bool:
+        """Check if setup is currently in progress"""
+        try:
+            with self.get_connection() as conn:
+                result = conn.execute(
+                    "SELECT 1 FROM general_settings WHERE setting_key = 'setup_progress'"
+                ).fetchone()
+                return result is not None
+        except Exception as e:
+            logger.error(f"Failed to check setup progress: {e}")
+            return False
+
+    # ------------------------------------------------------------------
+    # Notification Connections CRUD
+    # ------------------------------------------------------------------
+
+    def _parse_notification_row(self, d: dict) -> dict:
+        """Parse a notification connection row from the database."""
+        for key in ('settings', 'triggers'):
+            if isinstance(d.get(key), str):
+                try:
+                    d[key] = json.loads(d[key])
+                except (json.JSONDecodeError, TypeError):
+                    d[key] = {}
+        d['enabled'] = bool(d.get('enabled', 1))
+        d['include_app_name'] = bool(d.get('include_app_name', 1))
+        d['include_instance_name'] = bool(d.get('include_instance_name', 1))
+        d.setdefault('app_scope', 'all')
+        d.setdefault('instance_scope', 'all')
+        return d
+
+    def get_notification_connections(self) -> List[Dict[str, Any]]:
+        """Return all notification connections."""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                'SELECT * FROM notification_connections ORDER BY app_scope, id'
+            ).fetchall()
+            return [self._parse_notification_row(dict(row)) for row in rows]
+
+    def get_notification_connection(self, conn_id: int) -> Optional[Dict[str, Any]]:
+        """Return a single notification connection by ID."""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            row = conn.execute(
+                'SELECT * FROM notification_connections WHERE id = ?', (conn_id,)
+            ).fetchone()
+            if not row:
+                return None
+            return self._parse_notification_row(dict(row))
+
+    def save_notification_connection(self, data: Dict[str, Any]) -> int:
+        """Create or update a notification connection. Returns the connection ID."""
+        conn_id = data.get('id')
+        name = data.get('name', 'Unnamed')
+        provider = data.get('provider', '')
+        enabled = 1 if data.get('enabled', True) else 0
+        settings_json = json.dumps(data.get('settings', {}))
+        triggers_json = json.dumps(data.get('triggers', {}))
+        include_app = 1 if data.get('include_app_name', True) else 0
+        include_inst = 1 if data.get('include_instance_name', True) else 0
+        app_scope = data.get('app_scope', 'all')
+        instance_scope = data.get('instance_scope', 'all')
+
+        with self.get_connection() as conn:
+            if conn_id:
+                conn.execute('''
+                    UPDATE notification_connections
+                    SET name = ?, provider = ?, enabled = ?, settings = ?,
+                        triggers = ?, include_app_name = ?, include_instance_name = ?,
+                        app_scope = ?, instance_scope = ?,
+                        updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                ''', (name, provider, enabled, settings_json, triggers_json,
+                      include_app, include_inst, app_scope, instance_scope, conn_id))
+                conn.commit()
+                return conn_id
+            else:
+                cursor = conn.execute('''
+                    INSERT INTO notification_connections
+                    (name, provider, enabled, settings, triggers, include_app_name,
+                     include_instance_name, app_scope, instance_scope)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (name, provider, enabled, settings_json, triggers_json,
+                      include_app, include_inst, app_scope, instance_scope))
+                conn.commit()
+                return cursor.lastrowid
+
+    def delete_notification_connection(self, conn_id: int) -> bool:
+        """Delete a notification connection by ID."""
+        with self.get_connection() as conn:
+            cursor = conn.execute(
+                'DELETE FROM notification_connections WHERE id = ?', (conn_id,)
+            )
+            conn.commit()
+            return cursor.rowcount > 0
+
+    # ── Indexer Hunt accessors ───────────────────────────────────────────
+
+    def add_indexer_snipe_indexer(self, indexer_data: Dict[str, Any]) -> str:
+        """Add a new Indexer Hunt indexer. Returns the id."""
+        import uuid
+        idx_id = indexer_data.get('id') or str(uuid.uuid4())
+        cats = indexer_data.get('categories', [])
+        if isinstance(cats, list):
+            cats = json.dumps(cats)
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT INTO indexer_snipe_indexers
+                    (id, name, display_name, preset, protocol, url, api_path, api_key, enabled, priority, categories)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (
+                idx_id,
+                indexer_data.get('name', 'Unnamed'),
+                indexer_data.get('display_name', ''),
+                indexer_data.get('preset', 'manual'),
+                indexer_data.get('protocol', 'usenet'),
+                indexer_data.get('url', ''),
+                indexer_data.get('api_path', '/api'),
+                indexer_data.get('api_key', ''),
+                1 if indexer_data.get('enabled', True) else 0,
+                indexer_data.get('priority', 50),
+                cats,
+            ))
+            conn.commit()
+        return idx_id
+
+    def get_indexer_snipe_indexers(self) -> List[Dict[str, Any]]:
+        """Return all Indexer Hunt indexers."""
+        with self.get_connection() as conn:
+            with self._use_row_factory(conn) as c:
+                rows = c.execute('SELECT * FROM indexer_snipe_indexers ORDER BY priority ASC, name ASC').fetchall()
+            out = []
+            for r in rows:
+                d = dict(r)
+                try:
+                    d['categories'] = json.loads(d.get('categories') or '[]')
+                except (json.JSONDecodeError, TypeError):
+                    d['categories'] = []
+                d['enabled'] = bool(d.get('enabled', 1))
+                out.append(d)
+            return out
+
+    def get_indexer_snipe_indexer(self, idx_id: str) -> Optional[Dict[str, Any]]:
+        """Return a single Indexer Hunt indexer by id."""
+        with self.get_connection() as conn:
+            with self._use_row_factory(conn) as c:
+                row = c.execute('SELECT * FROM indexer_snipe_indexers WHERE id = ?', (idx_id,)).fetchone()
+            if not row:
+                return None
+            d = dict(row)
+            try:
+                d['categories'] = json.loads(d.get('categories') or '[]')
+            except (json.JSONDecodeError, TypeError):
+                d['categories'] = []
+            d['enabled'] = bool(d.get('enabled', 1))
+            return d
+
+    def update_indexer_snipe_indexer(self, idx_id: str, updates: Dict[str, Any]) -> bool:
+        """Update fields on an Indexer Hunt indexer. Returns True if a row was updated."""
+        allowed = ['name', 'display_name', 'preset', 'protocol', 'url', 'api_path',
+                    'api_key', 'enabled', 'priority', 'categories']
+        sets = []
+        vals = []
+        for k in allowed:
+            if k in updates:
+                v = updates[k]
+                if k == 'categories' and isinstance(v, list):
+                    v = json.dumps(v)
+                if k == 'enabled':
+                    v = 1 if v else 0
+                sets.append(f'{k} = ?')
+                vals.append(v)
+        if not sets:
+            return False
+        sets.append('updated_at = CURRENT_TIMESTAMP')
+        vals.append(idx_id)
+        with self.get_connection() as conn:
+            cur = conn.execute(f'UPDATE indexer_snipe_indexers SET {", ".join(sets)} WHERE id = ?', vals)
+            conn.commit()
+            return cur.rowcount > 0
+
+    def delete_indexer_snipe_indexer(self, idx_id: str) -> bool:
+        """Delete an Indexer Hunt indexer and its stats/history."""
+        with self.get_connection() as conn:
+            conn.execute('DELETE FROM indexer_snipe_stats WHERE indexer_id = ?', (idx_id,))
+            conn.execute('DELETE FROM indexer_snipe_history WHERE indexer_id = ?', (idx_id,))
+            cur = conn.execute('DELETE FROM indexer_snipe_indexers WHERE id = ?', (idx_id,))
+            conn.commit()
+            return cur.rowcount > 0
+
+    def record_indexer_snipe_event(self, indexer_id: str, indexer_name: str, event_type: str,
+                                  query: str = '', result_title: str = '', response_time_ms: int = 0,
+                                  success: bool = True, error_message: str = '',
+                                  instance_id: int = None, instance_name: str = ''):
+        """Log an event to indexer_snipe_history and update aggregate stats."""
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT INTO indexer_snipe_history
+                    (indexer_id, indexer_name, event_type, query, result_title,
+                     response_time_ms, success, error_message, instance_id, instance_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (indexer_id, indexer_name, event_type, query, result_title,
+                  response_time_ms, 1 if success else 0, error_message,
+                  instance_id, instance_name))
+            # Update aggregate stats
+            stat_key = event_type  # e.g. 'search', 'grab', 'failure'
+            conn.execute('''
+                INSERT INTO indexer_snipe_stats (indexer_id, stat_type, stat_value)
+                VALUES (?, ?, 1)
+                ON CONFLICT(indexer_id, stat_type) DO UPDATE SET
+                    stat_value = stat_value + 1,
+                    recorded_at = CURRENT_TIMESTAMP
+            ''', (indexer_id, stat_key))
+            # Update response time average
+            if response_time_ms > 0:
+                conn.execute('''
+                    INSERT INTO indexer_snipe_stats (indexer_id, stat_type, stat_value)
+                    VALUES (?, 'avg_response_ms', ?)
+                    ON CONFLICT(indexer_id, stat_type) DO UPDATE SET
+                        stat_value = (stat_value + ?) / 2.0,
+                        recorded_at = CURRENT_TIMESTAMP
+                ''', (indexer_id, response_time_ms, response_time_ms))
+            conn.commit()
+
+    def get_indexer_snipe_stats(self, indexer_id: str = None) -> List[Dict[str, Any]]:
+        """Get Indexer Hunt stats, optionally filtered by indexer_id."""
+        with self.get_connection() as conn:
+            with self._use_row_factory(conn) as c:
+                if indexer_id:
+                    rows = c.execute('SELECT * FROM indexer_snipe_stats WHERE indexer_id = ?', (indexer_id,)).fetchall()
+                else:
+                    rows = c.execute('SELECT * FROM indexer_snipe_stats ORDER BY indexer_id').fetchall()
+            return [dict(r) for r in rows]
+
+    def get_indexer_snipe_stats_24h(self, indexer_id: str = None) -> Dict[str, Any]:
+        """Get rolling 24-hour Indexer Hunt stats from history table.
+        
+        Returns aggregated counts for the last 24 hours:
+        searches, grabs, failures, avg_response_ms, per-indexer breakdown.
+        """
+        with self.get_connection() as conn:
+            params = []
+            indexer_filter = ''
+            if indexer_id:
+                indexer_filter = 'AND indexer_id = ?'
+                params.append(indexer_id)
+
+            # Aggregate counts by event type in last 24 hours
+            rows = conn.execute(f'''
+                SELECT event_type, COUNT(*) as cnt
+                FROM indexer_snipe_history
+                WHERE created_at >= datetime('now', '-24 hours')
+                {indexer_filter}
+                GROUP BY event_type
+            ''', params).fetchall()
+
+            counts = {}
+            for r in rows:
+                counts[r[0]] = r[1]
+
+            # Average response time for searches in last 24 hours
+            avg_row = conn.execute(f'''
+                SELECT AVG(response_time_ms) as avg_ms
+                FROM indexer_snipe_history
+                WHERE created_at >= datetime('now', '-24 hours')
+                AND event_type = 'search'
+                AND response_time_ms > 0
+                {indexer_filter}
+            ''', params).fetchone()
+            avg_ms = round(avg_row[0], 1) if avg_row and avg_row[0] else 0
+
+            # Failure count (searches with success=0)
+            fail_row = conn.execute(f'''
+                SELECT COUNT(*) as cnt
+                FROM indexer_snipe_history
+                WHERE created_at >= datetime('now', '-24 hours')
+                AND event_type = 'search'
+                AND success = 0
+                {indexer_filter}
+            ''', params).fetchone()
+            failures = fail_row[0] if fail_row else 0
+
+            return {
+                'searches': counts.get('search', 0),
+                'grabs': counts.get('grab', 0),
+                'failures': failures,
+                'avg_response_ms': avg_ms,
+                'health_checks': counts.get('health_check', 0),
+                'tests': counts.get('test', 0),
+            }
+
+    def get_indexer_snipe_stats_24h_per_indexer(self) -> List[Dict[str, Any]]:
+        """Get rolling 24-hour stats broken down by indexer."""
+        with self.get_connection() as conn:
+            rows = conn.execute('''
+                SELECT indexer_id, indexer_name, event_type,
+                       COUNT(*) as cnt,
+                       AVG(CASE WHEN response_time_ms > 0 THEN response_time_ms ELSE NULL END) as avg_ms,
+                       SUM(CASE WHEN success = 0 AND event_type = 'search' THEN 1 ELSE 0 END) as fail_cnt
+                FROM indexer_snipe_history
+                WHERE created_at >= datetime('now', '-24 hours')
+                GROUP BY indexer_id, event_type
+            ''').fetchall()
+
+            by_indexer = {}
+            for r in rows:
+                iid = r[0]
+                if iid not in by_indexer:
+                    by_indexer[iid] = {
+                        'id': iid,
+                        'name': r[1] or 'Unknown',
+                        'searches': 0,
+                        'grabs': 0,
+                        'failures': 0,
+                        'avg_response_ms': 0,
+                    }
+                etype = r[2]
+                if etype == 'search':
+                    by_indexer[iid]['searches'] = r[3]
+                    by_indexer[iid]['avg_response_ms'] = round(r[4], 1) if r[4] else 0
+                    by_indexer[iid]['failures'] = r[5]
+                elif etype == 'grab':
+                    by_indexer[iid]['grabs'] = r[3]
+
+            # Calculate failure rates
+            for idx_data in by_indexer.values():
+                s = idx_data['searches']
+                idx_data['failure_rate'] = round((idx_data['failures'] / s) * 100, 1) if s > 0 else 0
+
+            return list(by_indexer.values())
+
+    def get_indexer_snipe_history(self, indexer_id: str = None, event_type: str = None,
+                                 page: int = 1, page_size: int = 50) -> Dict[str, Any]:
+        """Get paginated Indexer Hunt history with optional filters."""
+        conditions = []
+        params = []
+        if indexer_id:
+            conditions.append('indexer_id = ?')
+            params.append(indexer_id)
+        if event_type:
+            conditions.append('event_type = ?')
+            params.append(event_type)
+        where = ('WHERE ' + ' AND '.join(conditions)) if conditions else ''
+        offset = (max(1, page) - 1) * page_size
+        with self.get_connection() as conn:
+            with self._use_row_factory(conn) as c:
+                count_row = c.execute(f'SELECT COUNT(*) as cnt FROM indexer_snipe_history {where}', params).fetchone()
+                total = count_row['cnt'] if count_row else 0
+                rows = c.execute(
+                    f'SELECT * FROM indexer_snipe_history {where} ORDER BY created_at DESC LIMIT ? OFFSET ?',
+                    params + [page_size, offset]
+                ).fetchall()
+            return {
+                'items': [dict(r) for r in rows],
+                'total': total,
+                'page': page,
+                'page_size': page_size,
+                'total_pages': max(1, (total + page_size - 1) // page_size),
+            }
+
+# Separate LogsDatabase class for logs.db
+class LogsDatabase:
+    """Separate database class specifically for logs to keep logs.db separate from sniparr.db"""
+    
+    def __init__(self):
+        self._thread_local = threading.local()
+        self.db_path = self._get_logs_database_path()
+        self.ensure_logs_database_exists()
+    
+    def _get_logs_database_path(self) -> Path:
+        """Get logs database path - same directory as main database but separate file"""
+        # Check if running in Docker
+        config_dir = Path("/config")
+        if config_dir.exists() and config_dir.is_dir():
+            return config_dir / "logs.db"
+        
+        # Check for Windows config directory
+        windows_config = os.environ.get("SNIPARR_CONFIG_DIR")
+        if windows_config:
+            config_path = Path(windows_config)
+            config_path.mkdir(parents=True, exist_ok=True)
+            return config_path / "logs.db"
+        
+        # Check for Windows AppData
+        import platform
+        if platform.system() == "Windows":
+            appdata = os.environ.get("APPDATA", os.path.expanduser("~"))
+            windows_config_dir = Path(appdata) / "Sniparr"
+            windows_config_dir.mkdir(parents=True, exist_ok=True)
+            return windows_config_dir / "logs.db"
+        
+        # Local development
+        project_root = Path(__file__).parent.parent.parent.parent
+        data_dir = project_root / "data"
+        data_dir.mkdir(parents=True, exist_ok=True)
+        return data_dir / "logs.db"
+    
+    def _configure_logs_connection(self, conn):
+        """Configure SQLite connection for logs database"""
+        try:
+            conn.execute('PRAGMA foreign_keys = ON')
+            conn.execute('PRAGMA journal_mode = DELETE')
+            conn.execute('PRAGMA synchronous = FULL')
+            conn.execute('PRAGMA cache_size = -2000')
+            conn.execute('PRAGMA temp_store = MEMORY')
+            conn.execute('PRAGMA busy_timeout = 30000')
+            conn.execute('PRAGMA auto_vacuum = INCREMENTAL')
+        except Exception as e:
+            logger.error(f"Error configuring logs database connection: {e}")
+            pass
+    
+    def get_logs_connection(self):
+        """Get a configured SQLite connection for logs database with thread-local caching and retry logic"""
+        # Try to reuse thread-local cached connection
+        cached_conn = getattr(self._thread_local, 'conn', None)
+        if cached_conn is not None:
+            try:
+                cached_conn.execute("SELECT 1")
+                return cached_conn
+            except Exception:
+                try:
+                    cached_conn.close()
+                except Exception:
+                    pass
+                self._thread_local.conn = None
+        
+        max_retries = 3
+        last_error = None
+        
+        for attempt in range(max_retries):
+            try:
+                conn = sqlite3.connect(self.db_path, timeout=30)
+                self._configure_logs_connection(conn)
+                # Test connection
+                conn.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1").fetchone()
+                self._thread_local.conn = conn
+                return conn
+            except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
+                last_error = e
+                error_str = str(e).lower()
+                if "file is not a database" in error_str or "database disk image is malformed" in error_str:
+                    if attempt < max_retries - 1:
+                        # Try WAL recovery first
+                        logger.warning(f"Logs database error on attempt {attempt + 1}: {e}. Trying WAL recovery...")
+                        wal_path = Path(str(self.db_path) + "-wal")
+                        if wal_path.exists():
+                            try:
+                                recovery_conn = sqlite3.connect(self.db_path, timeout=30)
+                                recovery_conn.execute('PRAGMA journal_mode = WAL')
+                                recovery_conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+                                recovery_conn.close()
+                            except Exception:
+                                pass
+                        time.sleep(1)
+                        continue
+                    else:
+                        logger.error(f"Logs database corruption confirmed: {e}")
+                        self._handle_logs_database_corruption()
+                        conn = sqlite3.connect(self.db_path, timeout=30)
+                        self._configure_logs_connection(conn)
+                        self._thread_local.conn = conn
+                        return conn
+                elif "database is locked" in error_str:
+                    time.sleep(2)
+                    continue
+                else:
+                    raise
+        raise last_error if last_error else sqlite3.OperationalError("Failed to connect to logs database")
+    
+    def _handle_logs_database_corruption(self):
+        """Handle logs database corruption — logs are non-critical so deletion is acceptable"""
+        logger.error(f"Handling logs database corruption for: {self.db_path}")
+        
+        try:
+            if self.db_path.exists():
+                backup_path = self.db_path.parent / f"logs_corrupted_backup_{int(time.time())}.db"
+                try:
+                    shutil.copy2(self.db_path, backup_path)
+                    logger.warning(f"Corrupted logs database backed up to: {backup_path}")
+                except Exception:
+                    pass
+                
+                self.db_path.unlink()
+                # Clean up WAL/SHM files
+                for suffix in ["-wal", "-shm"]:
+                    p = Path(str(self.db_path) + suffix)
+                    if p.exists():
+                        p.unlink()
+                logger.warning("Starting with fresh logs database - log history will be lost")
+                
+        except Exception as backup_error:
+            logger.error(f"Error during logs database corruption recovery: {backup_error}")
+            try:
+                if self.db_path.exists():
+                    self.db_path.unlink()
+            except OSError:
+                pass
+    
+    def ensure_logs_database_exists(self):
+        """Create logs database and tables if they don't exist"""
+        try:
+            with self.get_logs_connection() as conn:
+                # Create logs table
+                conn.execute('''
+                    CREATE TABLE IF NOT EXISTS logs (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        timestamp DATETIME NOT NULL,
+                        level TEXT NOT NULL,
+                        level_num INTEGER DEFAULT 20,
+                        app_type TEXT NOT NULL,
+                        message TEXT NOT NULL,
+                        logger_name TEXT,
+                        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+                    )
+                ''')
+                
+                # Add level_num column if it doesn't exist (for existing databases)
+                try:
+                    conn.execute('ALTER TABLE logs ADD COLUMN level_num INTEGER DEFAULT 20')
+                    logger.info("Added level_num column to logs table")
+                except sqlite3.OperationalError:
+                    pass  # Column already exists
+                
+                # Create indexes for logs performance
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_logs_app_type ON logs(app_type)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_logs_level ON logs(level)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_logs_level_num ON logs(level_num)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_logs_app_level ON logs(app_type, level)')
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_logs_app_level_num ON logs(app_type, level_num)')
+                # Composite index for sorted pagination (most common query: filter by app + sort by time)
+                conn.execute('CREATE INDEX IF NOT EXISTS idx_logs_app_timestamp ON logs(app_type, timestamp DESC)')
+                
+                conn.commit()
+                logger.info(f"Logs database initialized at: {self.db_path}")
+                
+        except (sqlite3.DatabaseError, sqlite3.OperationalError) as e:
+            if "file is not a database" in str(e) or "database disk image is malformed" in str(e):
+                logger.error(f"Logs database corruption detected during table creation: {e}")
+                self._handle_logs_database_corruption()
+                # Try creating tables again after recovery
+                self.ensure_logs_database_exists()
+            else:
+                raise
+    
+    def _get_level_num(self, level: str) -> int:
+        """Map log level string to numeric value for inclusive filtering"""
+        level_map = {
+            'DEBUG': 10,
+            'INFO': 20,
+            'INFORMATION': 20,
+            'WARNING': 30,
+            'WARN': 30,
+            'ERROR': 40,
+            'CRITICAL': 50,
+            'FATAL': 50
+        }
+        return level_map.get(level.upper(), 20)
+
+    def insert_log(self, timestamp: datetime, level: str, app_type: str, message: str, logger_name: str = None):
+        """Insert a log entry into the logs database. Skips insert if an identical entry (same second, app_type, level, message) already exists."""
+        try:
+            level_num = self._get_level_num(level)
+            with self.get_logs_connection() as conn:
+                # Normalize timestamp to second for duplicate check
+                ts_str = timestamp.isoformat() if hasattr(timestamp, 'isoformat') else str(timestamp)
+                ts_sec = (ts_str[:19].replace('T', ' ') if len(ts_str) >= 19 else ts_str)
+                cur = conn.execute('''
+                    SELECT 1 FROM logs
+                    WHERE strftime('%Y-%m-%d %H:%M:%S', timestamp) = ?
+                    AND app_type = ? AND level = ? AND message = ?
+                    LIMIT 1
+                ''', (ts_sec, app_type, level, message))
+                if cur.fetchone() is not None:
+                    return  # duplicate within same second, skip insert
+                conn.execute('''
+                    INSERT INTO logs (timestamp, level, level_num, app_type, message, logger_name)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                ''', (timestamp, level, level_num, app_type, message, logger_name))
+                conn.commit()
+        except Exception as e:
+            # Don't let log insertion failures crash the app
+            print(f"Error inserting log: {e}")
+    
+    def get_logs(self, app_type: str = None, level: str = None, limit: int = 100, offset: int = 0, search: str = None, exclude_app_types: List[str] = None) -> List[Dict[str, Any]]:
+        """Get logs with filtering and pagination.
+        exclude_app_types: when app_type is None (all), exclude these app types (e.g. ['movie_snipe'] for main logs).
+        """
+        try:
+            with self.get_logs_connection() as conn:
+                conn.row_factory = sqlite3.Row
+                
+                where_conditions = []
+                params = []
+                
+                if app_type and app_type != "all":
+                    base_apps = ["sonarr", "radarr", "lidarr", "readarr", "whisparr", "eros", "sportarr", "swaparr"]
+                    app_lower = (app_type or "").lower()
+                    # media_snipe = Movie Hunt + TV Hunt combined (default for Media Hunt Logs)
+                    if app_lower == "media_snipe":
+                        where_conditions.append("(app_type IN (?, ?))")
+                        params.extend(["movie_snipe", "tv_snipe"])
+                    # For cyclical apps, include per-instance logs (e.g. Sonarr-test, Sonarr-beta9)
+                    elif app_lower in base_apps:
+                        app_prefix = app_type.strip()[0:1].upper() + (app_type.strip()[1:].lower() if len(app_type) > 1 else "")
+                        where_conditions.append("(app_type = ? OR app_type LIKE ?)")
+                        params.extend([app_type, app_prefix + "-%"])
+                    else:
+                        where_conditions.append("app_type = ?")
+                        params.append(app_type)
+                elif exclude_app_types:
+                    # Main logs "all" view: exclude independent modules (e.g. movie_snipe has its own Activity → Logs)
+                    placeholders = ",".join("?" * len(exclude_app_types))
+                    where_conditions.append(f"app_type NOT IN ({placeholders})")
+                    params.extend(exclude_app_types)
+                
+                if level and level != "all":
+                    # Use inclusive filtering: show selected level and above
+                    level_num = self._get_level_num(level)
+                    where_conditions.append("level_num >= ?")
+                    params.append(level_num)
+                
+                if search:
+                    where_conditions.append("message LIKE ?")
+                    params.append(f"%{search}%")
+                
+                where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+                
+                query = f"""
+                    SELECT * FROM logs {where_clause}
+                    ORDER BY timestamp DESC
+                    LIMIT ? OFFSET ?
+                """
+                
+                cursor = conn.execute(query, params + [limit, offset])
+                return [dict(row) for row in cursor.fetchall()]
+                
+        except Exception as e:
+            logger.error(f"Error getting logs: {e}")
+            return []
+    
+    def get_log_count(self, app_type: str = None, level: str = None, search: str = None, exclude_app_types: List[str] = None) -> int:
+        """Get total count of logs matching filters.
+        exclude_app_types: when app_type is None (all), exclude these app types (e.g. ['movie_snipe'] for main logs).
+        """
+        try:
+            with self.get_logs_connection() as conn:
+                where_conditions = []
+                params = []
+                
+                if app_type and app_type != "all":
+                    base_apps = ["sonarr", "radarr", "lidarr", "readarr", "whisparr", "eros", "sportarr", "swaparr"]
+                    app_lower = (app_type or "").lower()
+                    # media_snipe = Movie Hunt + TV Hunt combined (default for Media Hunt Logs)
+                    if app_lower == "media_snipe":
+                        where_conditions.append("(app_type IN (?, ?))")
+                        params.extend(["movie_snipe", "tv_snipe"])
+                    # For cyclical apps, include per-instance logs (e.g. Sonarr-test, Sonarr-beta9)
+                    elif app_lower in base_apps:
+                        app_prefix = app_type.strip()[0:1].upper() + (app_type.strip()[1:].lower() if len(app_type) > 1 else "")
+                        where_conditions.append("(app_type = ? OR app_type LIKE ?)")
+                        params.extend([app_type, app_prefix + "-%"])
+                    else:
+                        where_conditions.append("app_type = ?")
+                        params.append(app_type)
+                elif exclude_app_types:
+                    # Main logs "all" view: exclude independent modules (e.g. movie_snipe has its own Activity → Logs)
+                    placeholders = ",".join("?" * len(exclude_app_types))
+                    where_conditions.append(f"app_type NOT IN ({placeholders})")
+                    params.extend(exclude_app_types)
+                
+                if level and level != "all":
+                    # Use inclusive filtering: show selected level and above
+                    level_num = self._get_level_num(level)
+                    where_conditions.append("level_num >= ?")
+                    params.append(level_num)
+                
+                if search:
+                    where_conditions.append("message LIKE ?")
+                    params.append(f"%{search}%")
+                
+                where_clause = "WHERE " + " AND ".join(where_conditions) if where_conditions else ""
+                
+                query = f"SELECT COUNT(*) FROM logs {where_clause}"
+                cursor = conn.execute(query, params)
+                return cursor.fetchone()[0]
+                
+        except Exception as e:
+            logger.error(f"Error getting log count: {e}")
+            return 0
+    
+    def cleanup_old_logs(self, days_to_keep: int = 30, max_entries_per_app: int = 10000):
+        """Clean up old logs to prevent database bloat"""
+        try:
+            with self.get_logs_connection() as conn:
+                # Delete logs older than specified days
+                cutoff_date = datetime.now() - timedelta(days=days_to_keep)
+                cursor = conn.execute("DELETE FROM logs WHERE timestamp < ?", (cutoff_date,))
+                deleted_by_age = cursor.rowcount
+                
+                # Keep only the most recent entries per app
+                apps_cursor = conn.execute("SELECT DISTINCT app_type FROM logs")
+                total_deleted_by_count = 0
+                
+                for (app_type,) in apps_cursor.fetchall():
+                    # Get count for this app
+                    count_cursor = conn.execute("SELECT COUNT(*) FROM logs WHERE app_type = ?", (app_type,))
+                    count = count_cursor.fetchone()[0]
+                    
+                    if count > max_entries_per_app:
+                        # Delete oldest entries beyond the limit
+                        excess_count = count - max_entries_per_app
+                        delete_cursor = conn.execute("""
+                            DELETE FROM logs 
+                            WHERE app_type = ? 
+                            AND id IN (
+                                SELECT id FROM logs 
+                                WHERE app_type = ? 
+                                ORDER BY timestamp ASC 
+                                LIMIT ?
+                            )
+                        """, (app_type, app_type, excess_count))
+                        total_deleted_by_count += delete_cursor.rowcount
+                
+                conn.commit()
+                return deleted_by_age + total_deleted_by_count
+                
+        except Exception as e:
+            logger.error(f"Error cleaning up logs: {e}")
+            return 0
+    
+    def get_app_types_from_logs(self) -> List[str]:
+        """Get list of all raw app types that have logs (e.g. Sonarr-test, sonarr, system)."""
+        try:
+            with self.get_logs_connection() as conn:
+                cursor = conn.execute("SELECT DISTINCT app_type FROM logs ORDER BY app_type")
+                return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting app types from logs: {e}")
+            return []
+
+    def get_app_types(self) -> List[str]:
+        """Get base app types for log filter dropdown (all, system, sonarr, radarr, ...). Normalizes Sonarr-test -> sonarr."""
+        try:
+            raw = self.get_app_types_from_logs()
+            base = set()
+            for at in raw:
+                part = (at or "").split("-")[0].strip().lower()
+                if part:
+                    base.add(part)
+            order = ["all", "system", "sonarr", "radarr", "lidarr", "readarr", "whisparr", "eros", "sportarr", "swaparr", "movie_snipe", "tv_snipe"]
+            result = [a for a in order if a in base or (a == "all" and base)]
+            if "all" not in result and base:
+                result.insert(0, "all")
+            for a in sorted(base):
+                if a not in result:
+                    result.append(a)
+            return result if result else ["all"]
+        except Exception as e:
+            logger.error(f"Error getting app types: {e}")
+            return ["all", "system"]
+
+    def get_log_levels(self) -> List[str]:
+        """Get list of all log levels that exist"""
+        try:
+            with self.get_logs_connection() as conn:
+                cursor = conn.execute("SELECT DISTINCT level FROM logs ORDER BY level")
+                return [row[0] for row in cursor.fetchall()]
+        except Exception as e:
+            logger.error(f"Error getting log levels: {e}")
+            return []
+    
+    def clear_logs(self, app_type: str = None, exclude_app_types: List[str] = None):
+        """Clear logs for a specific app type or all logs. For cyclical apps, clears base and per-instance (e.g. sonarr, Sonarr-test).
+        exclude_app_types: when clearing all (app_type None), do not delete these (e.g. ['movie_snipe'] for main logs clear).
+        """
+        try:
+            with self.get_logs_connection() as conn:
+                if app_type:
+                    base_apps = ["sonarr", "radarr", "lidarr", "readarr", "whisparr", "eros", "sportarr", "swaparr"]
+                    app_lower = (app_type or "").lower()
+                    if app_lower == "media_snipe":
+                        cursor = conn.execute("DELETE FROM logs WHERE app_type IN (?, ?)", ("movie_snipe", "tv_snipe"))
+                    elif app_lower in base_apps:
+                        app_prefix = app_type.strip()[0:1].upper() + (app_type.strip()[1:].lower() if len(app_type) > 1 else "")
+                        cursor = conn.execute("DELETE FROM logs WHERE app_type = ? OR app_type LIKE ?", (app_type, app_prefix + "-%"))
+                    else:
+                        cursor = conn.execute("DELETE FROM logs WHERE app_type = ?", (app_type,))
+                else:
+                    if exclude_app_types:
+                        placeholders = ",".join("?" * len(exclude_app_types))
+                        cursor = conn.execute(f"DELETE FROM logs WHERE app_type NOT IN ({placeholders})", exclude_app_types)
+                    else:
+                        cursor = conn.execute("DELETE FROM logs")
+
+                deleted_count = cursor.rowcount
+                conn.commit()
+
+                logger.info(f"Cleared {deleted_count} logs" + (f" for {app_type}" if app_type else " (main apps only)" if exclude_app_types else ""))
+                return deleted_count
+        except Exception as e:
+            logger.error(f"Error clearing logs: {e}")
+            return 0
+
+# Global database instances (thread-safe initialization)
+_database_instance = None
+_logs_database_instance = None
+_db_init_lock = threading.Lock()
+
+def get_database() -> SniparrDatabase:
+    """Get the global database instance (thread-safe)"""
+    global _database_instance
+    if _database_instance is None:
+        with _db_init_lock:
+            if _database_instance is None:  # Double-check locking
+                _database_instance = SniparrDatabase()
+    return _database_instance
+
+def _reset_database_instances():
+    """Reset global database singletons.
+    
+    Called after database deletion so the next get_database() call
+    creates a fresh instance that will properly initialize a new database.
+    """
+    global _database_instance, _logs_database_instance
+    with _db_init_lock:
+        # Invalidate any cached connections on the current thread
+        if _database_instance is not None:
+            _database_instance.invalidate_connection()
+        _database_instance = None
+        _logs_database_instance = None
+    logger.info("Database singleton instances reset")
+
+# Logs Database Functions (consolidated from logs_database.py)
+def get_logs_database() -> LogsDatabase:
+    """Get the logs database instance for logs operations (thread-safe)"""
+    global _logs_database_instance
+    if _logs_database_instance is None:
+        with _db_init_lock:
+            if _logs_database_instance is None:  # Double-check locking
+                _logs_database_instance = LogsDatabase()
+    return _logs_database_instance
+
+def schedule_log_cleanup():
+    """Schedule periodic log cleanup - call this from background tasks"""
+    import threading
+    import time
+    
+    def cleanup_worker():
+        """Background worker to clean up logs periodically"""
+        while True:
+            try:
+                time.sleep(3600)  # Run every hour
+                # Read user settings instead of using hardcoded values
+                try:
+                    import src.primary.settings_manager as sm
+                    settings = sm.load_settings('general')
+                    days = int(settings.get('log_retention_days', 30))
+                    max_entries = int(settings.get('log_max_entries_per_app', 10000))
+                    auto_cleanup = settings.get('log_auto_cleanup', True)
+                except Exception:
+                    days = 30
+                    max_entries = 10000
+                    auto_cleanup = True
+
+                if not auto_cleanup:
+                    continue
+
+                logs_db = get_logs_database()
+                deleted_count = logs_db.cleanup_old_logs(days_to_keep=days, max_entries_per_app=max_entries)
+                if deleted_count > 0:
+                    logger.info(f"Scheduled cleanup removed {deleted_count} old log entries (retention={days}d, max_per_app={max_entries})")
+            except Exception as e:
+                logger.error(f"Error in scheduled log cleanup: {e}")
+    
+    # Start cleanup thread
+    cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
+    cleanup_thread.start()
+    logger.info("Scheduled log cleanup thread started")
+
+# Manager Database Functions (consolidated from manager_database.py)
+def get_manager_database() -> SniparrDatabase:
+    """Get the database instance for manager operations"""
+    return get_database() 

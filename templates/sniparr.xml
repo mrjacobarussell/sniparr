@@ -1,0 +1,69 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>sniparr</Name>
+  <Repository>mrjacobarussell/sniparr:latest</Repository>
+  <Registry>https://hub.docker.com/r/mrjacobarussell/sniparr</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>bash</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/mrjacobarussell/sniparr/issues</Support>
+  <Project>https://github.com/mrjacobarussell/sniparr</Project>
+  <Overview>Sniparr — Automated missing-media hunter and stuck-download manager for your *arr stack (Sonarr, Radarr, Lidarr, Readarr, Whisparr). Includes Swaparr for stuck download removal, quality-upgrade hunting, and a hardened security layer with CSRF protection, signed sessions, and SSRF-guarded instance URLs. Ground-up project by MrJacobarussell.</Overview>
+  <Category>MediaApp: Video MediaApp: Music MediaApp: Books Tools:</Category>
+  <WebUI>http://[IP]:[PORT:9705]/</WebUI>
+  <TemplateURL>https://raw.githubusercontent.com/mrjacobarussell/sniparr/main/templates/sniparr.xml</TemplateURL>
+  <Icon>https://raw.githubusercontent.com/mrjacobarussell/sniparr/main/frontend/static/logo/sniparr-256.png</Icon>
+  <ExtraParams>--restart=unless-stopped</ExtraParams>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText>Buy Me a Coffee</DonateText>
+  <DonateLink>https://buymeacoffee.com/jacobrussell_medic</DonateLink>
+  <Requires/>
+
+  <!-- ── Ports ───────────────────────────────────────────────────── -->
+
+  <Config Name="WebUI Port" Target="9705" Default="9705" Mode="tcp"
+    Description="Web interface port for Sniparr."
+    Type="Port" Display="always" Required="true" Mask="false">9705</Config>
+
+  <!-- ── Paths ───────────────────────────────────────────────────── -->
+
+  <Config Name="Config Storage" Target="/config" Default="/mnt/user/appdata/sniparr" Mode="rw"
+    Description="Persistent storage for Sniparr settings, database, and logs."
+    Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/sniparr</Config>
+
+  <Config Name="Localtime" Target="/etc/localtime" Default="/etc/localtime" Mode="ro"
+    Description="Inherit timezone from the Unraid host. Set your timezone in Unraid Settings → Date and Time."
+    Type="Path" Display="advanced" Required="false" Mask="false">/etc/localtime</Config>
+
+  <!-- ── Core environment ─────────────────────────────────────────── -->
+
+  <Config Name="PUID" Target="PUID" Default="99" Mode=""
+    Description="User ID the container process runs as. Unraid default is 99."
+    Type="Variable" Display="always" Required="false" Mask="false">99</Config>
+
+  <Config Name="PGID" Target="PGID" Default="100" Mode=""
+    Description="Group ID the container process runs as. Unraid default is 100."
+    Type="Variable" Display="always" Required="false" Mask="false">100</Config>
+
+  <Config Name="TZ" Target="TZ" Default="America/New_York" Mode=""
+    Description="Timezone string (e.g. America/New_York, Europe/London). Used for log timestamps and scheduled search windows."
+    Type="Variable" Display="always" Required="false" Mask="false">America/New_York</Config>
+
+  <!-- ── Reverse-proxy / SSO auth (optional) ──────────────────────── -->
+
+  <Config Name="Auth Mode" Target="SNIPARR_AUTH_MODE" Default="" Mode=""
+    Description="Leave blank for built-in login. Set to 'proxy' to delegate authentication to a reverse proxy (Authelia, Authentik, oauth2-proxy). In proxy mode direct access without the proxy header returns 403."
+    Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+
+  <Config Name="Proxy Auth Header" Target="SNIPARR_AUTH_PROXY_HEADER" Default="Remote-User" Mode=""
+    Description="Header your reverse proxy injects with the authenticated username. Only used when Auth Mode is set to 'proxy'. Default: Remote-User."
+    Type="Variable" Display="advanced" Required="false" Mask="false">Remote-User</Config>
+
+  <Config Name="Trusted Proxies" Target="SNIPARR_TRUSTED_PROXIES" Default="" Mode=""
+    Description="Comma-separated list of reverse-proxy IPs that are allowed to supply the auth header (e.g. 172.16.0.1,192.168.1.1). X-Forwarded-For is only honoured from these IPs. Required when Auth Mode is proxy."
+    Type="Variable" Display="advanced" Required="false" Mask="false"></Config>
+
+</Container>

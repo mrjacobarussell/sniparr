@@ -1,0 +1,172 @@
+<!-- Index Master — Centralized Indexer Management + Per-Instance Indexers -->
+<section id="indexer-snipe-section" class="content-section" style="display: none;">
+    <link rel="stylesheet" href="./static/css/indexer-hunt.css">
+    <link rel="stylesheet" href="./static/css/instance-editor.css?v=1.0.2">
+    <link rel="stylesheet" href="./static/css/home.css">
+    <div class="app-content-panel" style="padding: 20px;">
+    {% from 'components/page_header_partial.html' import page_header %}
+    {{ page_header(back_href='./#media-snipe-collection', parent_icon='fas fa-search-plus', parent_name='Media Hunt', current_name='Indexer Manager', sponsor_section_id='indexer-hunt') }}
+
+    <!-- Continue to Setup Guide banner (shown when wizard incomplete) -->
+    <div id="indexer-setup-wizard-continue-banner" class="setup-wizard-continue-banner" style="display: none; margin-bottom: 20px;">
+        <i class="fas fa-arrow-right"></i>
+        <span>Done with indexers? Assign them to each instance above, then continue to the next step.</span>
+        <button type="button" class="setup-wizard-continue-btn" data-wizard-nav="media-snipe-collection">
+            <i class="fas fa-forward"></i> Continue to Setup Guide
+        </button>
+    </div>
+
+    <!-- No-instances warning box (same style as Media Management) -->
+    <div id="indexer-snipe-no-instances" class="ih-no-instances" style="display: none;">
+        <i class="fas fa-cube" aria-hidden="true"></i>
+        <p class="no-instances-title">No instances configured</p>
+        <p class="no-instances-desc">Configure a Movie Snipe or TV Snipe instance to manage indexers.</p>
+        <a href="./#media-snipe-instances" class="no-instances-action-btn"><i class="fas fa-cog"></i> Configure instances</a>
+    </div>
+    <div id="indexer-snipe-content-wrapper" style="display: none;">
+    <!-- ── Instance Indexers (first: per-instance indexers + Import from Index Master) ───────────────────────── -->
+    <div class="app-content-panel ih-page-wrapper ih-instance-area" id="ih-instance-area" style="width:100%;padding:20px;margin:0;background:transparent;box-shadow:none;border:none;display:none;">
+        <div id="indexer-instance-setup-callout" class="instance-setup-callout" style="display: none; margin-bottom: 16px;">
+            <i class="fas fa-cube" aria-hidden="true"></i>
+            <div>
+                <strong>Select which instance you're configuring.</strong> Indexers are assigned per-instance — you must import indexers into <strong>each</strong> Movie Snipe and TV Snipe instance. Use the dropdown below to switch between instances.
+            </div>
+        </div>
+        <div class="media-snipe-settings-instance-bar" style="margin-bottom: 16px;">
+            <label for="settings-indexers-instance-select" class="instance-selector-label instance-selector-label-emphasis">Instance</label>
+            <select id="settings-indexers-instance-select" class="control-select" aria-label="Instance">
+                <option value="">Loading...</option>
+            </select>
+        </div>
+        <div class="settings-group indexer-settings-group ih-instance-indexers-group" style="background:rgba(15,23,42,0.4);border:1px solid rgba(148,163,184,0.08);border-radius:12px;padding:24px;margin:12px 0 20px 0;">
+            <h3 style="margin:0 0 8px 0;padding:0 0 12px 0;font-size:1.1rem;font-weight:600;color:#f1f5f9;border-bottom:1px solid rgba(148,163,184,0.12);background:none;box-shadow:none;"><i class="fas fa-server" style="margin-right: 8px; font-size: 0.95rem;"></i>Instance Indexers</h3>
+            <p style="font-size:0.85rem;color:#64748b;margin:0 0 16px 0;">Indexers for the selected TV or Movie Snipe instance. Import from the Index Master pool below.</p>
+            <div class="instance-card-grid" id="indexer-instances-grid-unified">
+                <div class="add-instance-card" data-app-type="indexer" data-source="indexer-hunt">
+                    <div class="add-icon"><i class="fas fa-download" style="color: #6366f1;"></i></div>
+                    <div class="add-text">Import from Index Master</div>
+                </div>
+            </div>
+        </div>
+        <div class="settings-group indexer-settings-group ih-import-panel" id="ih-import-panel" style="display: none; border-left: 3px solid #6366f1;">
+            <h3><i class="fas fa-download" style="color: #6366f1; margin-right: 8px; font-size: 0.95rem;"></i>Import Indexers from Index Master</h3>
+            <p class="ih-mgmt-desc">Select indexers to import to this instance. Imported indexers stay linked for API key and enable/disable sync.</p>
+            <div class="ih-import-list" id="ih-import-list">
+                <div style="color: #94a3b8; padding: 20px; text-align: center;">Loading available indexers...</div>
+            </div>
+            <div class="ih-import-actions" id="ih-import-actions" style="display: none;">
+                <button type="button" class="ih-import-cancel-btn" id="ih-import-cancel">Cancel</button>
+                <button type="button" class="ih-import-confirm-btn" id="ih-import-confirm">
+                    <i class="fas fa-download"></i> Import Selected
+                </button>
+            </div>
+        </div>
+        <!-- Instance indexer status checklist — shows which instances are missing indexers -->
+        <div id="indexer-instance-status-area" class="settings-group root-folders-settings-group root-folders-instance-status-area" style="display: none; margin-top: 8px;">
+            <h3>Indexer Status by Instance</h3>
+            <div id="indexer-instance-status-grid" class="root-folders-instance-status-grid">
+                <!-- Populated by JS -->
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Index Master Pool (central management) — below Instance Indexers ─────────── -->
+    <div class="ih-page" id="ih-list-view">
+        <div class="ih-page-header">
+            <div class="ih-page-title">
+                <i class="fas fa-search-plus"></i>
+                <h2>Index Master Pool</h2>
+            </div>
+        </div>
+
+        <!-- Info: Pool vs. per-instance (shown when pool has indexers) -->
+        <div class="ih-pool-notice" id="ih-pool-notice" style="display: none;">
+            <i class="fas fa-info-circle"></i>
+            <div>
+                <strong>Index Master Pool is just a pool.</strong> Indexers here are not used until you assign them to each instance. Use the instance selector above and click &quot;Import from Index Master&quot; to add indexers to your Movie Snipe or TV Snipe instances.
+            </div>
+        </div>
+
+        <!-- Index Master Pool: central indexer definitions (hidden when empty) -->
+        <div class="ih-group-box" id="ih-group-box">
+            <h3>Index Master Pool</h3>
+            <div class="ih-card-grid" id="ih-card-grid"></div>
+        </div>
+
+        <!-- Empty state -->
+        <div class="ih-empty" id="ih-empty-state" style="display: none;">
+            <div class="ih-empty-icon"><i class="fas fa-satellite-dish"></i></div>
+            <h3>No Indexers Configured</h3>
+            <p><strong>Step 1:</strong> Add indexers to the Index Master Pool below (API keys, URLs).</p>
+            <p style="margin-top: 8px;"><strong>Step 2:</strong> After adding, assign them to each instance — the pool is just a pool. Use &quot;Import from Index Master&quot; for each Movie Snipe and TV Snipe instance.</p>
+            <button class="ih-btn-primary" id="ih-empty-add-btn">
+                <i class="fas fa-plus"></i> Add Indexer
+            </button>
+        </div>
+    </div>
+
+    <!-- ── Editor view (full page, replaces list) ───────────── -->
+    <div class="ih-page" id="ih-editor-view" style="display: none;">
+        <div class="ih-editor-header">
+            <div class="ih-editor-nav">
+                <button type="button" class="ih-btn-ghost" id="ih-editor-back">
+                    <i class="fas fa-arrow-left"></i> Back
+                </button>
+                <div class="ih-editor-breadcrumb">
+                    <i class="fas fa-search-plus"></i>
+                    <span>Index Master</span>
+                    <i class="fas fa-chevron-right"></i>
+                    <span id="ih-editor-breadcrumb-name">Add Indexer</span>
+                </div>
+            </div>
+            <button type="button" class="ih-btn-primary" id="ih-editor-save">
+                <i class="fas fa-save"></i> Save
+            </button>
+        </div>
+
+        <div class="ih-editor-single">
+            <div class="ih-editor-section">
+                <div class="ih-editor-section-title" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <span>Connection Settings</span>
+                    <div id="ih-connection-status-container"></div>
+                </div>
+                <div class="ih-field">
+                    <label for="ih-form-protocol">Protocol</label>
+                    <select id="ih-form-protocol" class="ih-input">
+                        <option value="usenet">Usenet</option>
+                    </select>
+                    <p class="ih-help-text">Determines whether NZBs (Usenet) or torrents appear. Torrent support is pending.</p>
+                </div>
+                <div class="ih-field">
+                    <label for="ih-form-preset">Preset</label>
+                    <select id="ih-form-preset" class="ih-input">
+                        <option value="manual">Custom (Manual)</option>
+                    </select>
+                </div>
+                <div class="ih-field">
+                    <label for="ih-form-name">Name</label>
+                    <input type="text" id="ih-form-name" class="ih-input" placeholder="Indexer name">
+                </div>
+                <div class="ih-field">
+                    <label for="ih-form-api-key">API Key</label>
+                    <input type="text" id="ih-form-api-key" class="ih-input" placeholder="Enter API key">
+                </div>
+                <div class="ih-field">
+                    <label for="ih-form-priority">Priority (1-99)</label>
+                    <input type="number" id="ih-form-priority" class="ih-input" value="50" min="1" max="99">
+                    <p class="ih-help-text">Lower number = higher priority. Results from higher-priority indexers are preferred.</p>
+                </div>
+                <div class="ih-field">
+                    <label for="ih-form-url">URL</label>
+                    <input type="text" id="ih-form-url" class="ih-input" placeholder="https://...">
+                </div>
+                <div class="ih-field">
+                    <label for="ih-form-api-path">API Path</label>
+                    <input type="text" id="ih-form-api-path" class="ih-input" value="/api">
+                </div>
+            </div>
+        </div>
+    </div>
+    </div>
+    </div>
+</section>

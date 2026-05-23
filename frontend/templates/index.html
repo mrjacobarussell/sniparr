@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    {% include 'components/head.html' %}
+    <title>Sniparr - Home</title>
+    
+    <!-- Immediate CSS to prevent sidebar flash -->
+    <style id="initial-sidebar-state">
+        /* Hide sidebar initially; JavaScript will show it once the correct group is expanded */
+        #sidebar {
+            display: none !important;
+        }
+    </style>
+
+    <!-- Pass base URL configuration to JavaScript -->
+    <script nonce="{{ g.csp_nonce }}">window.SNIPARR_BASE_URL = '{{ base_url|default("", true) }}';</script>
+    
+    <!-- Pass global scripts -->
+    {% include 'components/scripts.html' %}
+</head>
+<body>
+    <div class="app-container mobile-optimized">
+        {% include 'components/sidebar.html' %}
+        
+        <div class="main-content">
+            {% include 'components/topbar.html' %}
+            {% include 'components/mobile_topbar.html' %}
+            
+            <!-- Home Section -->
+            {% include 'components/home_section.html' %}
+            
+            <!-- System Section (Sniparr Manager, Logs, About - tabbed) -->
+            {% include 'components/system_section.html' %}
+            
+            <!-- Apps Section -->
+            {% include 'components/apps_section.html' %}
+            
+            <!-- Individual App Sections -->
+            {% include 'components/sonarr_section.html' %}
+            {% include 'components/radarr_section.html' %}
+            {% include 'components/lidarr_section.html' %}
+            {% include 'components/readarr_section.html' %}
+            {% include 'components/whisparr_section.html' %}
+            {% include 'components/eros_section.html' %}
+            {% include 'components/sportarr_section.html' %}
+
+            <!-- Instance Editor Section -->
+            {% include 'components/instance_editor_section.html' %}
+            
+            <!-- Swaparr Section -->
+            {% include 'components/swaparr_section.html' %}
+
+            <!-- Prowlarr Section -->
+            {% include 'components/prowlarr_section.html' %}
+
+            <!-- Settings Section -->
+            {% include 'components/settings_section.html' %}
+
+            <!-- Settings sub-pages (Media Management, Profiles, Indexers, Clients) -->
+            {% include 'components/settings_movie_management_section.html' %}
+            {% include 'components/settings_sizes_section.html' %}
+            {% include 'components/profile_editor_section.html' %}
+            {% include 'components/settings_custom_formats_section.html' %}
+            {% include 'components/settings_indexers_section.html' %}
+            {% include 'components/settings_import_lists_section.html' %}
+            {% include 'components/settings_root_folders_section.html' %}
+            
+            <!-- Scheduling Section -->
+            {% include 'components/scheduling_section.html' %}
+            
+            <!-- Notifications Section -->
+            {% include 'components/notifications_section.html' %}
+            
+            <!-- Backup / Restore Section -->
+            {% include 'components/backup_restore_section.html' %}
+
+            <!-- Logs Settings Section -->
+            {% include 'components/settings_logs_section.html' %}
+            
+            <!-- Security Audit Log -->
+            {% include 'components/audit_log_section.html' %}
+
+            <!-- User Section -->
+            {% include 'components/user_section.html' %}
+
+            <!-- History Section -->
+            {% include 'components/history_section.html' %}
+
+        </div>
+    </div>
+
+    <!-- Global confirm modal (Profiles, Indexers, Clients, Root Folders, Custom Formats deletes) -->
+    {% include 'components/confirm_modal.html' %}
+    
+    {% include 'components/footer.html' %}
+    
+    <!-- Plex authentication return handler -->
+    <script nonce="{{ g.csp_nonce }}">
+        // Check if we're returning from Plex authentication
+        document.addEventListener('DOMContentLoaded', function() {
+            const plexLogin = localStorage.getItem('sniparr-plex-login');
+            const plexLinking = localStorage.getItem('sniparr-plex-linking');
+            const plexPinId = localStorage.getItem('sniparr-plex-pin-id');
+            const plexSetupMode = localStorage.getItem('sniparr-plex-setup-mode');
+            const plexUserMode = localStorage.getItem('sniparr-plex-user-mode');
+            
+            if (plexLogin === 'true') {
+                window.location.href = './login';
+            } else if (plexLinking === 'true' && plexSetupMode === 'true') {
+                window.location.href = './setup';
+            } else if (plexLinking === 'true' && plexUserMode === 'true') {
+                console.log('Detected Plex user mode return - letting UserModule handle it');
+            }
+        });
+    </script>
+</body>
+</html>

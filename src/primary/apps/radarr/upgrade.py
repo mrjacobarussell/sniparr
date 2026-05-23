@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""
+Quality Upgrade Processing for Radarr
+Handles searching for movies that need quality upgrades in Radarr
+"""
+
+import time
+import random
+import datetime
+from typing import List, Dict, Any, Set, Callable
+from src.primary.utils.logger import get_logger
+from src.primary.apps.radarr import api as radarr_api
+from src.primary.stats_manager import increment_stat_only
+from src.primary.stateful_manager import add_processed_id
+from src.primary.utils.history_utils import log_processed_media
+from src.primary.settings_manager import load_settings
+from src.primary.utils.date_utils import parse_date
+from src.primary.apps._common.settings import extract_app_settings, validate_settings
+from src.primary.apps._common.filtering import filter_exempt_items, filter_unprocessed
+from src.primary.apps._common.processing import should_continue_processing
+from src.primary.apps._common.tagging import try_tag_item
+
+# Get logger for the app
+radarr_logger = get_logger("radarr")
+
+def should_delay_movie_search(release_date_str: str, delay_days: int) -> bool:
+    """
+    Check if a movie search should be delayed based on its release date.
+    
+    Args:
+        release_date_str: Movie release date in ISO format (e.g., '2024-01-15T00:00:00Z')
+        delay_days: Number of days to delay search after release date
+        
+    Returns:
+        True if search should be delayed, False if ready to search
+    """
+    if delay_days <= 0:
+        return False  # No delay configured
+        
+    if not release_date_str:
+        return False  # No release date, don't delay (process immediately)
+        
+    try:
+        # Parse the release date
+        release_date = parse_date(release_date_str)
+        if not release_date:
+            return False  # Invalid date, don't delay
+            
+        current_time = datetime.datetime.now(datetime.timezone.utc)
+        
+        # Calculate when search should start (release date + delay)
+        search_start_time = release_date + datetime.timedelta(days=delay_days)
+        
+        # Return True if we should still delay (current time < search start time)
+        return current_time < search_start_time
+        
+    except Exception as e:
+        radarr_logger.warning(f"Could not parse release date '{release_date_str}' for delay calculation: {e}")
+        return False  # Don't delay if we can't parse the date
+
+def process_cutoff_upgrades(
+    app_settings: Dict[str, Any],
+    stop_check: Callable[[], bool] # Function to check if stop is requested
+) -> bool:
+    """
+    Process quality cutoff upgrades for Radarr based on settings.
+    
+    Args:
+        app_settings: Dictionary containing all settings for Radarr
+        stop_check: A function that returns True if the process should stop
+        
+    Returns:
+        True if any movies were processed for upgrades, False otherwise.
+    """
+    radarr_logger.info("Starting quality cutoff upgrades processing cycle for Radarr.")
+    processed_any = False
+    
+    # Extract common settings using shared utility
+    s = extract_app_settings(app_settings, "radarr", "hunt_upgrade_movies", "Radarr Default")
+    instance_name = s['instance_name']
+    instance_key = s['instance_key']
+    api_url = s['api_url']
+    api_key = s['api_key']
+    api_timeout = s['api_timeout']
+    monitored_only = s['monitored_only']
+    hunt_upgrade_movies = s['hunt_count']
+    tag_settings = s['tag_settings']
+    
+    # App-specific settings
+    skip_future_releases = app_settings.get("skip_future_releases", True)
+    upgrade_selection_method = (app_settings.get("upgrade_selection_method") or "cutoff").strip().lower()
+    if upgrade_selection_method not in ("cutoff", "tags"):
+        upgrade_selection_method = "cutoff"
+    upgrade_tag = (app_settings.get("upgrade_tag") or "").strip()
+ 
+    quality_profiles = radarr_api.get_quality_profiles(api_url, api_key, api_timeout)
+ 
+    if not quality_profiles:
+        radarr_logger.warning("Failed to retrieve quality profiles.")
+        return False
+ 
+    profile_upgrade_map = {
+        profile.get('id'): profile.get('upgradeAllowed', False)
+        for profile in quality_profiles
+    }
+ 
+    profile_name_map = {
+        profile.get('id'): profile.get('name', 'Unknown')
+        for profile in quality_profiles
+    }
+ 
+    no_upgrade_profiles = [
+        f"{profile.get('name')} (ID: {profile.get('id')})"
+        for profile in quality_profiles
+        if not profile.get('upgradeAllowed', False)
+    ]
+    if no_upgrade_profiles:
+        radarr_logger.info(f"Quality profiles without upgrade allowed: {', '.join(no_upgrade_profiles)}")
+ 
+    if upgrade_selection_method == "tags":
+        if not upgrade_tag:
+            radarr_logger.warning("Upgrade selection method is 'Tags' but no upgrade tag is configured. Skipping.")
+            return False
+        radarr_logger.info(f"Retrieving movies WITHOUT tag \"{upgrade_tag}\" (Upgradinatorr-style: tag tracks processed)...")
+        upgrade_eligible_data = radarr_api.get_movies_without_tag(
+            api_url, api_key, api_timeout, upgrade_tag, monitored_only
+        )
+        if upgrade_eligible_data is None:
+            return False
+        if not upgrade_eligible_data:
+            radarr_logger.info(f"No movies found without the tag \"{upgrade_tag}\" (all have been processed).")
+            return False
+        radarr_logger.info(f"Found {len(upgrade_eligible_data)} movies without tag \"{upgrade_tag}\".")
+    else:
+        radarr_logger.info("Retrieving movies eligible for cutoff upgrade...")
+        upgrade_eligible_data = radarr_api.get_cutoff_unmet_movies_random_page(
+            api_url, api_key, api_timeout, monitored_only, count=50
+        )
+        if not upgrade_eligible_data:
+            radarr_logger.info("No movies found eligible for upgrade or error retrieving them.")
+            return False
+        radarr_logger.info(f"Found {len(upgrade_eligible_data)} movies below quality cutoff.")
+ 
+    upgrade_allowed_movies = []
+    filtered_count = 0
+    for movie in upgrade_eligible_data:
+        movie_id = movie.get('id')
+        movie_title = movie.get('title', 'Unknown Title')
+        quality_profile_id = movie.get('qualityProfileId')
+ 
+        if quality_profile_id in profile_upgrade_map:
+            if profile_upgrade_map[quality_profile_id]:
+                upgrade_allowed_movies.append(movie)
+            else:
+                profile_name = profile_name_map.get(quality_profile_id, 'Unknown')
+                radarr_logger.debug(f"Skipping movie ID {movie_id} ('{movie_title}') - quality profile '{profile_name}' does not have upgrade allowed")
+                filtered_count += 1
+        else:
+            radarr_logger.warning(f"Movie ID {movie_id} ('{movie_title}') has unknown quality profile ID {quality_profile_id}, including it")
+            upgrade_allowed_movies.append(movie)
+ 
+    if filtered_count > 0:
+        radarr_logger.info(f"Filtered out {filtered_count} movies without upgrade allowed quality profiles")
+ 
+    upgrade_eligible_data = upgrade_allowed_movies
+ 
+    if not upgrade_eligible_data:
+        radarr_logger.info("No movies with upgrade allowed quality profiles.")
+        return False
+ 
+    radarr_logger.info(f"Found {len(upgrade_eligible_data)} movies with upgrade allowed quality profiles.")
+
+    # Filter out movies with exempt tags (issue #676)
+    upgrade_eligible_data = filter_exempt_items(
+        upgrade_eligible_data, s['exempt_tags'], radarr_api,
+        api_url, api_key, api_timeout,
+        get_tags_fn=lambda m: m.get("tags", []),
+        get_id_fn=lambda m: m.get("id"),
+        get_title_fn=lambda m: m.get("title", "Unknown"),
+        app_type="radarr", logger=radarr_logger
+    )
+
+    # Skip future releases if enabled (matching missing movies logic)
+    if skip_future_releases:
+        radarr_logger.info("Filtering out future releases from upgrades...")
+        now = datetime.datetime.now(datetime.timezone.utc)
+        
+        filtered_movies = []
+        skipped_count = 0
+        no_date_count = 0
+        for movie in upgrade_eligible_data:
+            movie_id = movie.get('id')
+            movie_title = movie.get('title', 'Unknown Title')
+            release_date_str = movie.get('releaseDate')
+            
+            if release_date_str:
+                release_date = parse_date(release_date_str)
+                if release_date:
+                    if release_date > now:
+                        # Movie has a future release date, skip it
+                        radarr_logger.debug(f"Skipping future movie ID {movie_id} ('{movie_title}') for upgrade - releaseDate is in the future: {release_date}")
+                        skipped_count += 1
+                        continue
+                    else:
+                        # Movie release date is in the past, include it
+                        radarr_logger.debug(f"Movie ID {movie_id} ('{movie_title}') releaseDate is in the past: {release_date}, including in upgrade search")
+                        filtered_movies.append(movie)
+                else:
+                    # Could not parse release date, treat as no date
+                    radarr_logger.debug(f"Movie ID {movie_id} ('{movie_title}') has unparseable releaseDate '{release_date_str}' for upgrade - treating as no release date")
+                    if app_settings.get('process_no_release_dates', False):
+                        radarr_logger.debug(f"Movie ID {movie_id} ('{movie_title}') has no valid release date but process_no_release_dates is enabled - including in upgrade search")
+                        filtered_movies.append(movie)
+                    else:
+                        radarr_logger.debug(f"Skipping movie ID {movie_id} ('{movie_title}') for upgrade - no valid release date and process_no_release_dates is disabled")
+                        no_date_count += 1
+            else:
+                # No release date available at all
+                if app_settings.get('process_no_release_dates', False):
+                    radarr_logger.debug(f"Movie ID {movie_id} ('{movie_title}') has no releaseDate field but process_no_release_dates is enabled - including in upgrade search")
+                    filtered_movies.append(movie)
+                else:
+                    radarr_logger.debug(f"Skipping movie ID {movie_id} ('{movie_title}') for upgrade - no releaseDate field and process_no_release_dates is disabled")
+                    no_date_count += 1
+        
+        radarr_logger.info(f"Filtered out {skipped_count} future releases and {no_date_count} movies with no release dates from upgrades")
+        radarr_logger.debug(f"After filtering: {len(filtered_movies)} movies remaining from {len(upgrade_eligible_data)} original")
+        upgrade_eligible_data = filtered_movies
+    else:
+        radarr_logger.info("Skip future releases is disabled - processing all movies for upgrades regardless of release date")
+
+    # Apply release date delay if configured
+    release_date_delay_days = app_settings.get("release_date_delay_days", 0)
+    if release_date_delay_days > 0:
+        radarr_logger.info(f"Applying {release_date_delay_days}-day release date delay for upgrades...")
+        original_count = len(upgrade_eligible_data)
+        delayed_movies = []
+        delayed_count = 0
+        
+        for movie in upgrade_eligible_data:
+            movie_id = movie.get('id')
+            movie_title = movie.get('title', 'Unknown Title')
+            release_date_str = movie.get('releaseDate')
+            
+            if should_delay_movie_search(release_date_str, release_date_delay_days):
+                delayed_count += 1
+                radarr_logger.debug(f"Delaying upgrade search for movie ID {movie_id} ('{movie_title}') - released {release_date_str}, waiting {release_date_delay_days} days")
+            else:
+                delayed_movies.append(movie)
+        
+        upgrade_eligible_data = delayed_movies
+        if delayed_count > 0:
+            radarr_logger.info(f"Delayed {delayed_count} movies for upgrades due to {release_date_delay_days}-day release date delay setting.")
+
+    if not upgrade_eligible_data:
+        radarr_logger.info("No movies eligible for upgrade left to process after filtering future releases.")
+        return False
+
+    # Filter out already processed movies using shared utility
+    unprocessed_movies = filter_unprocessed(
+        upgrade_eligible_data, "radarr", instance_key,
+        get_id_fn=lambda m: m.get("id"), logger=radarr_logger
+    )
+    radarr_logger.info(f"Found {len(unprocessed_movies)} unprocessed movies for upgrade out of {len(upgrade_eligible_data)} total.")
+    
+    if not unprocessed_movies:
+        radarr_logger.info("No upgradeable movies found to process (after filtering already processed). Skipping.")
+        return False
+        
+    radarr_logger.info(f"Randomly selecting up to {hunt_upgrade_movies} movies for upgrade search.")
+    movies_to_process = random.sample(unprocessed_movies, min(hunt_upgrade_movies, len(unprocessed_movies)))
+        
+    radarr_logger.info(f"Selected {len(movies_to_process)} movies to search for upgrades.")
+    processed_count = 0
+    processed_something = False
+    
+    for movie in movies_to_process:
+        if not should_continue_processing("radarr", stop_check, radarr_logger):
+            break
+            
+        movie_id = movie.get("id")
+        movie_title = movie.get("title")
+        movie_year = movie.get("year")
+        
+        radarr_logger.info(f"Processing upgrade for movie: \"{movie_title}\" ({movie_year}) (Movie ID: {movie_id})")
+        
+        # Refresh functionality has been removed as it was identified as a performance bottleneck
+        
+        # Search for cutoff upgrade
+        radarr_logger.info(f"  - Searching for quality upgrade...")
+        search_result = radarr_api.movie_search(api_url, api_key, api_timeout, [movie_id])
+        
+        if search_result:
+            radarr_logger.info(f"  - Successfully triggered search for quality upgrade.")
+            add_processed_id("radarr", instance_key, str(movie_id))
+            increment_stat_only("radarr", "upgraded", 1, instance_key)
+            
+            # For tag-based method: add the upgrade tag to mark as processed (Upgradinatorr-style)
+            if upgrade_selection_method == "tags" and upgrade_tag:
+                try:
+                    tag_id = radarr_api.get_or_create_tag(api_url, api_key, api_timeout, upgrade_tag)
+                    if tag_id:
+                        radarr_api.add_tag_to_movie(api_url, api_key, api_timeout, movie_id, tag_id)
+                        radarr_logger.debug(f"Added upgrade tag '{upgrade_tag}' to movie {movie_id} to mark as processed")
+                except Exception as e:
+                    radarr_logger.warning(f"Failed to add upgrade tag '{upgrade_tag}' to movie {movie_id}: {e}")
+            
+            # Tag with sniparr-upgrade if enabled (unified tagging)
+            try_tag_item(tag_settings, "upgrade", radarr_api.tag_processed_movie,
+                         api_url, api_key, api_timeout, movie_id,
+                         radarr_logger, f"movie {movie_id}")
+            
+            # Log to history so the upgrade appears in the history UI
+            media_name = f"{movie_title} ({movie_year})"
+            # Use TMDb ID for Radarr URLs (falls back to internal ID if TMDb ID not available)
+            tmdb_id = movie.get("tmdbId", movie_id)
+            log_processed_media("radarr", media_name, tmdb_id, instance_key, "upgrade", display_name_for_log=app_settings.get("instance_display_name") or instance_name)
+            radarr_logger.debug(f"Logged quality upgrade to history for movie ID {movie_id}")
+            
+            processed_count += 1
+            processed_something = True
+        else:
+            radarr_logger.warning(f"  - Failed to trigger search for quality upgrade.")
+            
+    # Log final status
+    radarr_logger.info(f"Completed processing {processed_count} movies for quality upgrades.")
+    
+    return processed_something

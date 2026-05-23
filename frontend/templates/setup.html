@@ -1,0 +1,740 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup - Sniparr</title>
+    <script nonce="{{ g.csp_nonce }}">
+        document.documentElement.classList.add('dark-mode');
+    </script>
+    <link rel="preload" href="./static/logo/sniparr.svg" as="image" fetchpriority="high">
+    <link rel="stylesheet" href="./static/css/style.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.7.2/css/all.min.css" integrity="sha384-nRgPTkuX86pH8yjPJUAFuASXQSSl2/bBUiNV47vSYpKFxHJhbcrGnmlYpYJMeD7a" crossorigin="anonymous" referrerpolicy="no-referrer">
+    <link rel="icon" href="./static/logo/sniparr.svg?v=2" type="image/svg+xml">
+    <link rel="icon" href="./static/logo/16.png?v=2" type="image/png" sizes="16x16">
+    <link rel="icon" href="./static/logo/32.png?v=2" type="image/png" sizes="32x32">
+    <script src="./static/js/modules/core/theme-preload.js"></script>
+    <link rel="stylesheet" href="./static/css/setup.css">
+</head>
+<body class="setup-page dark-mode">
+    <!-- Rotating backdrop layers -->
+    <div class="setup-backdrop-layer" id="backdropA"></div>
+    <div class="setup-backdrop-layer" id="backdropB"></div>
+    <div class="setup-backdrop-overlay"></div>
+
+    <div class="setup-layout">
+        <!-- ══════ Left Sidebar ══════ -->
+        <aside class="setup-sidebar">
+            <div class="setup-sidebar-brand">
+                <img src="./static/logo/sniparr.svg" alt="Sniparr" class="setup-sidebar-logo">
+                <span class="setup-sidebar-title">Sniparr</span>
+                <span class="setup-sidebar-subtitle">Setup</span>
+            </div>
+            <nav class="setup-progress-rail">
+                <div class="setup-stepper">
+                    <div id="step1" class="setup-stepper-item active">
+                        <div class="setup-step-circle">1</div>
+                        <div class="setup-step-info">
+                            <span class="setup-step-label">Account</span>
+                            <span class="setup-step-sublabel">Create admin credentials</span>
+                        </div>
+                    </div>
+                    <div id="step2" class="setup-stepper-item">
+                        <div class="setup-step-circle">2</div>
+                        <div class="setup-step-info">
+                            <span class="setup-step-label">2FA</span>
+                            <span class="setup-step-sublabel">Two-factor security</span>
+                        </div>
+                    </div>
+                    <div id="step3" class="setup-stepper-item">
+                        <div class="setup-step-circle">3</div>
+                        <div class="setup-step-info">
+                            <span class="setup-step-label">Auth</span>
+                            <span class="setup-step-sublabel">Access settings</span>
+                        </div>
+                    </div>
+                    <div id="step4" class="setup-stepper-item">
+                        <div class="setup-step-circle">4</div>
+                        <div class="setup-step-info">
+                            <span class="setup-step-label">Recovery</span>
+                            <span class="setup-step-sublabel">Backup key</span>
+                        </div>
+                    </div>
+                    <div id="step5" class="setup-stepper-item">
+                        <div class="setup-step-circle">5</div>
+                        <div class="setup-step-info">
+                            <span class="setup-step-label">Finish</span>
+                            <span class="setup-step-sublabel">Ready to go</span>
+                        </div>
+                    </div>
+                </div>
+            </nav>
+            <div class="setup-sidebar-footer">
+                <span>Powered by Sniparr</span>
+            </div>
+        </aside>
+
+        <!-- ══════ Right Content ══════ -->
+        <main class="setup-content">
+            <!-- Mobile header (visible only on small screens) -->
+            <div class="setup-mobile-header">
+                <img src="./static/logo/sniparr.svg" alt="Sniparr" class="setup-mobile-logo">
+                <span>Sniparr Setup</span>
+            </div>
+            <div class="setup-content-inner">
+
+                <!-- Step 1: Create Account -->
+                <div id="accountSetup" class="setup-section active">
+                    <h2>Welcome to Sniparr</h2>
+                    <p class="setup-step-desc">Let's create your admin account to get started.</p>
+                    <div class="form-group">
+                        <label for="username">
+                            <i class="fas fa-user"></i>
+                            <span>Username</span>
+                        </label>
+                        <input type="text" id="username" name="username" placeholder="Choose a username" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="password">
+                            <i class="fas fa-lock"></i>
+                            <span>Password</span>
+                        </label>
+                        <input type="password" id="password" name="password" placeholder="Minimum 8 characters" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="confirm_password">
+                            <i class="fas fa-check-circle"></i>
+                            <span>Confirm Password</span>
+                        </label>
+                        <input type="password" id="confirm_password" name="confirm_password" placeholder="Re-enter your password" required>
+                    </div>
+                    <div class="error-message" id="errorMessage" style="display: none;"></div>
+                    <div class="setup-step-actions">
+                        <div></div>
+                        <button type="button" id="accountNextButton" class="setup-btn-primary">
+                            Continue <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Setup 2FA -->
+                <div id="twoFactorSetup" class="setup-section">
+                    <h2>Two-Factor Authentication</h2>
+                    <p class="setup-step-desc">Secure your account with an authenticator app.</p>
+                    <div class="setup-2fa-layout">
+                        <div class="setup-2fa-qr-area">
+                            <p class="setup-2fa-instruction">Scan with your authenticator app</p>
+                            <div class="qr-code" id="qrCode" title="Click to enlarge">
+                                <img src="" alt="QR Code" style="display: none;">
+                            </div>
+                            <span class="qr-hint">Click to enlarge</span>
+                        </div>
+                        <div class="setup-2fa-manual-area">
+                            <p class="setup-2fa-instruction">Or enter this code manually</p>
+                            <div class="secret-key-container">
+                                <div class="secret-key" id="secretKey">Generating...</div>
+                                <button class="copy-button" onclick="copySecretKeySetup()">
+                                    <i class="fas fa-copy"></i> Copy
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="setup-2fa-verify">
+                        <div class="verify-input-group">
+                            <label for="verificationCode">
+                                <i class="fas fa-shield-alt"></i>
+                                <span>Verification Code</span>
+                            </label>
+                            <input type="text" id="verificationCode" placeholder="Enter 6-digit code" maxlength="6" autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="error-message" id="twoFactorErrorMessage" style="display: none;"></div>
+                    <div class="setup-step-actions">
+                        <button id="skip2FALink" class="setup-btn-ghost">
+                            Skip for now
+                        </button>
+                        <button type="button" id="twoFactorNextButton" class="setup-btn-primary">
+                            Verify & Continue <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Auth Mode -->
+                <div id="authModeSetup" class="setup-section">
+                    <h2>Authentication Mode</h2>
+                    <p class="setup-step-desc">Choose how users will access Sniparr.</p>
+
+                    <select id="auth_mode" style="display:none;">
+                        <option value="login" selected>Login Mode</option>
+                        <option value="local_bypass">Local Bypass Mode</option>
+                        <option value="no_login">No Login Mode</option>
+                    </select>
+
+                    <div class="radio-cards" id="authModeCards">
+                        <div class="radio-card selected" data-value="login">
+                            <div class="radio-card-indicator"></div>
+                            <i class="fas fa-shield-alt radio-card-icon"></i>
+                            <div class="radio-card-body">
+                                <div class="radio-card-title">Login Mode</div>
+                                <div class="radio-card-desc">Standard login required for all connections. Recommended for most users.</div>
+                            </div>
+                        </div>
+                        <div class="radio-card" data-value="local_bypass">
+                            <div class="radio-card-indicator"></div>
+                            <i class="fas fa-house-signal radio-card-icon"></i>
+                            <div class="radio-card-body">
+                                <div class="radio-card-title">Local Bypass Mode</div>
+                                <div class="radio-card-desc">Local network connections bypass login. External access still requires authentication.</div>
+                            </div>
+                        </div>
+                        <div class="radio-card" data-value="no_login">
+                            <div class="radio-card-indicator"></div>
+                            <i class="fas fa-lock-open radio-card-icon"></i>
+                            <div class="radio-card-body">
+                                <div class="radio-card-title">No Login Mode</div>
+                                <div class="radio-card-desc">Disable authentication. Only recommended behind a secured reverse proxy.</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="auth-warning" id="authWarning">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <strong>Warning:</strong> Only use No Login Mode if your reverse proxy is properly securing access!
+                    </div>
+
+                    <div class="error-message" id="authModeErrorMessage" style="display: none;"></div>
+                    <div class="setup-step-actions">
+                        <div></div>
+                        <button type="button" id="authModeNextButton" class="setup-btn-primary">
+                            Continue <i class="fas fa-arrow-right"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 4: Recovery Key -->
+                <div id="recoveryKeySetup" class="setup-section">
+                    <h2>Recovery Key</h2>
+                    <p class="setup-step-desc">Save this key &mdash; it's the only way to recover your account.</p>
+
+                    <div id="recoveryKeyDisplay">
+                        <div class="setup-key-display">
+                            <div class="setup-key-top-row">
+                                <i class="fas fa-shield-alt"></i>
+                                <div class="setup-key-info">
+                                    This is the <strong>only way</strong> to recover your account if you lose your password or 2FA device. Sniparr cannot reset your credentials or assist with account recovery &mdash; your security is fully self-sovereign to harden against cybersecurity attacks.
+                                </div>
+                            </div>
+                            <div class="setup-key-value">
+                                <span id="recoveryKeyValue">Generating...</span>
+                            </div>
+                            <div class="setup-key-actions-row">
+                                <button type="button" id="copyRecoveryKeyButton" class="copy-button">
+                                    <i class="fas fa-copy"></i> Copy Key
+                                </button>
+                                <span class="setup-key-warning-inline">
+                                    <i class="fas fa-exclamation-triangle"></i> Will not be shown again
+                                </span>
+                            </div>
+
+                            <div id="countdownSection" style="display: none;">
+                                <div class="setup-countdown">
+                                    <i class="fas fa-clock"></i>
+                                    <span>Copy/save your key</span>
+                                    <span class="countdown-number" id="countdownTimer">10</span>
+                                </div>
+                            </div>
+
+                            <div id="confirmationSection" style="display: none;">
+                                <div class="setup-confirm-prompt">
+                                    <span><i class="fas fa-question-circle"></i> Have you copied your recovery key?</span>
+                                    <div class="setup-confirm-buttons">
+                                        <button type="button" id="confirmCopiedButton" class="setup-btn-primary">
+                                            <i class="fas fa-check"></i> Yes, I've copied it
+                                        </button>
+                                        <button type="button" id="needMoreTimeButton" class="setup-btn-ghost">
+                                            <i class="fas fa-clock"></i> More time
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="recoveryKeyStatus" class="error-message" style="display: none;"></div>
+                </div>
+
+                <!-- Step 5: Finish -->
+                <div id="setupComplete" class="setup-section">
+                    <div class="setup-finish-content">
+                        <div class="setup-finish-icon">
+                            <i class="fas fa-check-circle"></i>
+                        </div>
+                        <h2>You're All Set</h2>
+                        <p class="setup-step-desc">Your Sniparr account is ready to go.</p>
+
+                        <div class="setup-finish-card">
+                            <i class="fas fa-heart thankyou-heart"></i>
+                            <p class="finish-title">Thank You For Using Sniparr</p>
+                            <p class="finish-body">
+                                If you love the program, consider buying me a coffee to help fund my home lab! Regardless, enjoy Sniparr and please join us on Discord for community support.
+                            </p>
+                            <p class="finish-sig">- MrJacobarussell & Sniparr Crew</p>
+                        </div>
+
+                        <div class="setup-special-thanks">
+                            <p class="special-thanks-title">Special Thanks</p>
+                            <div class="special-thanks-list">
+<a href="https://www.reddit.com/r/unRAID/" target="_blank" rel="noopener noreferrer" class="special-thanks-item">
+                                    <i class="fab fa-reddit-alien"></i>
+                                    <span>r/unRAID Community</span>
+                                </a>
+                            </div>
+                        </div>
+
+                        <div class="setup-step-actions" style="justify-content: center;">
+                            <button type="button" id="finishSetupButton" class="setup-btn-primary setup-btn-lg">
+                                <i class="fas fa-home"></i> Go to Dashboard
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- QR Code Modal -->
+    <div id="qrModal" class="qr-modal">
+        <div class="qr-modal-content">
+            <button class="qr-modal-close" onclick="closeQRModal()">&times;</button>
+            <img id="qrModalImage" src="" alt="Enlarged QR Code">
+        </div>
+    </div>
+
+    <!-- Pass base URL configuration to JavaScript -->
+    <script nonce="{{ g.csp_nonce }}">window.SNIPARR_BASE_URL = '{{ base_url|default("", true) }}';</script>
+    {% include 'components/scripts.html' %}
+    <script nonce="{{ g.csp_nonce }}">
+        // Global variables
+        let userData = { username: '', password: '' };
+
+        function openQRModal(imageSrc) {
+            const modal = document.getElementById('qrModal');
+            document.getElementById('qrModalImage').src = imageSrc;
+            modal.style.display = 'block';
+        }
+        function closeQRModal() { document.getElementById('qrModal').style.display = 'none'; }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            const steps = document.querySelectorAll('.setup-stepper-item');
+            const screens = document.querySelectorAll('.setup-section');
+            const errorMessage = document.getElementById('errorMessage');
+            const usernameInput = document.getElementById('username');
+            const passwordInput = document.getElementById('password');
+            const confirmPasswordInput = document.getElementById('confirm_password');
+            const accountNextButton = document.getElementById('accountNextButton');
+            const qrCodeElement = document.getElementById('qrCode');
+            const secretKeyElement = document.getElementById('secretKey');
+            const verificationCodeInput = document.getElementById('verificationCode');
+            const skip2FALink = document.getElementById('skip2FALink');
+            const twoFactorNextButton = document.getElementById('twoFactorNextButton');
+            const authModeSelect = document.getElementById('auth_mode');
+            const authModeNextButton = document.getElementById('authModeNextButton');
+            const authModeErrorMessage = document.getElementById('authModeErrorMessage');
+            const authModeCards = document.getElementById('authModeCards');
+            const authWarning = document.getElementById('authWarning');
+            const finishSetupButton = document.getElementById('finishSetupButton');
+
+            if (verificationCodeInput) verificationCodeInput.value = '';
+
+            let currentStep = 1;
+            let accountCreated = false;
+            let twoFactorEnabled = false;
+
+            if (authModeCards) {
+                authModeCards.addEventListener('click', function(e) {
+                    const card = e.target.closest('.radio-card');
+                    if (!card) return;
+                    authModeCards.querySelectorAll('.radio-card').forEach(c => c.classList.remove('selected'));
+                    card.classList.add('selected');
+                    authModeSelect.value = card.dataset.value;
+                    if (authWarning) authWarning.classList.toggle('visible', card.dataset.value === 'no_login');
+                });
+            }
+
+            function generate2FA() {
+                secretKeyElement.textContent = 'Generating...';
+                const qrCodeImg = qrCodeElement.querySelector('img');
+                if (qrCodeImg) qrCodeImg.style.display = 'none';
+                SniparrUtils.fetchWithTimeout('./api/user/2fa/setup', { method: 'POST' })
+                    .then(response => {
+                        if (response.status === 401) throw new Error('Unauthorized');
+                        if (!response.ok) return response.json().then(d => { throw new Error(d.error || 'Server error: ' + response.status); }).catch(() => { throw new Error('Server error: ' + response.status); });
+                        return response.json();
+                    })
+                    .then(data => {
+                        if (data.success) {
+                            const qrCodeImg = qrCodeElement.querySelector('img');
+                            if (qrCodeImg) {
+                                qrCodeImg.src = data.qr_code_url;
+                                qrCodeImg.style.display = 'block';
+                                qrCodeElement.addEventListener('click', function() { openQRModal(data.qr_code_url); });
+                            } else {
+                                qrCodeElement.innerHTML = '<img src="' + data.qr_code_url + '" alt="QR Code" style="display:block;max-width:100%;height:auto;">';
+                                qrCodeElement.addEventListener('click', function() { openQRModal(data.qr_code_url); });
+                            }
+                            secretKeyElement.textContent = data.secret;
+                        } else {
+                            secretKeyElement.textContent = 'Failed to generate';
+                        }
+                    })
+                    .catch(error => { secretKeyElement.textContent = 'Failed to generate'; });
+            }
+
+            window.showStep = function(step) {
+                steps.forEach((s, index) => {
+                    if (index + 1 < step) {
+                        s.classList.remove('active'); s.classList.add('completed');
+                        const circle = s.querySelector('.setup-step-circle');
+                        if (circle) circle.innerHTML = '<i class="fas fa-check" style="font-size: 14px;"></i>';
+                    } else if (index + 1 === step) {
+                        s.classList.add('active'); s.classList.remove('completed');
+                        const circle = s.querySelector('.setup-step-circle');
+                        if (circle) circle.textContent = String(index + 1);
+                    } else {
+                        s.classList.remove('active'); s.classList.remove('completed');
+                        const circle = s.querySelector('.setup-step-circle');
+                        if (circle) circle.textContent = String(index + 1);
+                    }
+                });
+                var sectionIds = ['accountSetup','twoFactorSetup','authModeSetup','recoveryKeySetup','setupComplete'];
+                sectionIds.forEach(function(id, i) {
+                    var el = document.getElementById(id);
+                    if (el) { if (i + 1 === step) el.classList.add('active'); else el.classList.remove('active'); }
+                });
+                if (step === 2) {
+                    if (verificationCodeInput) verificationCodeInput.value = '';
+                    setTimeout(() => generate2FA(), 500);
+                }
+                if (step === 4) setTimeout(() => autoGenerateRecoveryKey(), 500);
+                currentStep = step;
+            };
+
+            function showError(message) {
+                errorMessage.textContent = message;
+                errorMessage.style.display = 'block';
+                setTimeout(() => { errorMessage.style.display = 'none'; }, 5000);
+            }
+            function show2FAError(message) {
+                const el = document.getElementById('twoFactorErrorMessage');
+                if (el) { el.textContent = message; el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 5000); }
+            }
+            function validatePassword(password) {
+                if (password.length < 8) return 'Password must be at least 8 characters long.';
+                return null;
+            }
+
+            accountNextButton.addEventListener('click', function() {
+                const username = usernameInput.value.trim();
+                const password = passwordInput.value;
+                const confirmPassword = confirmPasswordInput.value;
+                if (!username || !password || !confirmPassword) { showError('All fields are required'); return; }
+                if (username.length < 3) { showError('Username must be at least 3 characters long'); return; }
+                if (password !== confirmPassword) { showError('Passwords do not match'); return; }
+                const passwordError = validatePassword(password);
+                if (passwordError) { showError(passwordError); return; }
+                userData.username = username;
+                userData.password = password;
+                if (accountCreated) { showStep(2); return; }
+                const setupUrl = (window.SNIPARR_BASE_URL || '') + '/setup';
+                const setupFullUrl = setupUrl.startsWith('http') ? setupUrl : (window.location.origin + (setupUrl.startsWith('/') ? setupUrl : '/' + setupUrl));
+                SniparrUtils.fetchWithTimeout(setupFullUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username: username, password: password, confirm_password: confirmPassword })
+                })
+                .then(response => {
+                    if (!response.ok) {
+                        const ct = response.headers.get('content-type');
+                        if (ct && ct.indexOf('application/json') !== -1) return response.json().then(d => { throw new Error(d.error || d.message || 'Server error: ' + response.status); });
+                        else throw new Error('HTTP error! status: ' + response.status);
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    if (data.success) {
+                        accountCreated = true;
+                        if (usernameInput && usernameInput.value) localStorage.setItem('sniparr-setup-username', usernameInput.value.trim());
+                        showStep(2);
+                    } else { showError(data.error || 'Account creation failed.'); }
+                })
+                .catch(error => { showError('Error: ' + error.message); });
+            });
+
+            twoFactorNextButton.addEventListener('click', function() {
+                const code = verificationCodeInput.value;
+                if (!code || code.length !== 6 || !/^\d{6}$/.test(code)) { show2FAError('Please enter a valid 6-digit verification code'); return; }
+                SniparrUtils.fetchWithTimeout('./api/user/2fa/verify', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ code: code })
+                })
+                .then(response => response.json().then(data => {
+                    if (response.ok && data.success) {
+                        twoFactorEnabled = true;
+                        saveSetupProgress({ current_step: 3, two_factor_enabled: true, completed_steps: [1, 2] });
+                        showStep(3); // step 3 is now Auth Mode
+                    } else { show2FAError(data.error || data.message || 'Invalid verification code'); }
+                }))
+                .catch(error => { show2FAError('Failed to verify code'); });
+            });
+
+            skip2FALink.addEventListener('click', function() {
+                saveSetupProgress({ current_step: 3, completed_steps: [1, 2] });
+                showStep(3); // step 3 is now Auth Mode
+            });
+
+            authModeNextButton.addEventListener('click', function() {
+                SniparrUtils.fetchWithTimeout('./api/settings/general', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ base_url: window.SNIPARR_BASE_URL, auth_mode: authModeSelect.value, local_access_bypass: authModeSelect.value === 'local_bypass', proxy_auth_bypass: authModeSelect.value === 'no_login' })
+                })
+                .then(response => { if (!response.ok) return response.json().then(d => { throw new Error(d.error || 'Error: ' + response.status); }); return response.json(); })
+                .then(data => { saveSetupProgress({ current_step: 4, auth_mode_selected: true, completed_steps: [1, 2, 3] }); showStep(4); })
+                .catch(error => { authModeErrorMessage.textContent = error.message || 'Error saving settings'; authModeErrorMessage.style.display = 'block'; setTimeout(() => { authModeErrorMessage.style.display = 'none'; }, 5000); });
+            });
+
+            // Recovery key
+            const copyRecoveryKeyButton = document.getElementById('copyRecoveryKeyButton');
+            const confirmCopiedButton = document.getElementById('confirmCopiedButton');
+            const needMoreTimeButton = document.getElementById('needMoreTimeButton');
+            let countdownInterval = null;
+            let recoveryKeyGenerated = false;
+
+            function autoGenerateRecoveryKey() {
+                if (recoveryKeyGenerated) return;
+                const url = (window.SNIPARR_BASE_URL || '') + '/auth/recovery-key/generate';
+                const fullUrl = url.startsWith('http') ? url : (window.location.origin + (url.startsWith('/') ? url : '/' + url));
+                SniparrUtils.fetchWithTimeout(fullUrl, {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ password: userData.password, setup_mode: true })
+                })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.success) { document.getElementById('recoveryKeyValue').textContent = data.recovery_key; recoveryKeyGenerated = true; startCountdown(); }
+                    else { showRecoveryKeyStatus(data.error || 'Failed to generate recovery key', 'error'); }
+                })
+                .catch(error => { showRecoveryKeyStatus('Error: ' + error.message, 'error'); });
+            }
+
+            function startCountdown() {
+                let timeLeft = 10;
+                document.getElementById('countdownSection').style.display = 'block';
+                document.getElementById('confirmationSection').style.display = 'none';
+                countdownInterval = setInterval(() => {
+                    document.getElementById('countdownTimer').textContent = timeLeft;
+                    timeLeft--;
+                    if (timeLeft < 0) { clearInterval(countdownInterval); document.getElementById('countdownSection').style.display = 'none'; document.getElementById('confirmationSection').style.display = 'block'; }
+                }, 1000);
+            }
+
+            copyRecoveryKeyButton.addEventListener('click', function() {
+                const key = document.getElementById('recoveryKeyValue').textContent;
+                if (!key || key === 'Generating...') return;
+                const btn = this;
+                function showCopied() { const o = btn.innerHTML; btn.innerHTML = '<i class="fas fa-check"></i> Copied!'; btn.style.backgroundColor = '#28a745'; setTimeout(() => { btn.innerHTML = o; btn.style.backgroundColor = ''; }, 2000); }
+                if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(key).then(showCopied).catch(() => fallbackCopy(key, showCopied));
+                else fallbackCopy(key, showCopied);
+            });
+
+            function fallbackCopy(text, onSuccess) {
+                const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
+                document.body.appendChild(ta); ta.select();
+                try { document.execCommand('copy'); if (onSuccess) onSuccess(); } catch (e) {}
+                document.body.removeChild(ta);
+            }
+
+            confirmCopiedButton.addEventListener('click', function() {
+                if (countdownInterval) clearInterval(countdownInterval);
+                saveSetupProgress({ current_step: 5, recovery_key_generated: true, completed_steps: [1, 2, 3, 4] });
+                showStep(5);
+            });
+            needMoreTimeButton.addEventListener('click', function() { if (countdownInterval) clearInterval(countdownInterval); startCountdown(); });
+
+            function showRecoveryKeyStatus(message, type) {
+                const el = document.getElementById('recoveryKeyStatus');
+                el.textContent = message; el.className = type === 'success' ? 'error-message success' : 'error-message';
+                el.style.display = 'block'; setTimeout(() => { el.style.display = 'none'; }, 5000);
+            }
+
+            finishSetupButton.addEventListener('click', async function() {
+                localStorage.removeItem('sniparr-setup-username');
+                await clearSetupProgress();
+                window.location.href = './';
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    if (currentStep === 1) accountNextButton.click();
+                    else if (currentStep === 2) twoFactorNextButton.click();
+                    else if (currentStep === 3) authModeNextButton.click();
+                    else if (currentStep === 4 && document.getElementById('confirmationSection').style.display !== 'none') confirmCopiedButton.click();
+                    else if (currentStep === 5) finishSetupButton.click();
+                }
+            });
+
+            document.body.classList.add('dark-mode');
+            localStorage.setItem('sniparr-dark-mode', 'true');
+
+            // Progress persistence
+            async function loadSetupProgress() {
+                try {
+                    const response = await fetch('./api/setup/progress');
+                    if (response.ok) { const data = await response.json(); if (data.success && data.progress) { restoreSetupState(data.progress); return; } }
+                    const local = localStorage.getItem('sniparr-setup-progress');
+                    if (local) { try { restoreSetupState(JSON.parse(local)); } catch (e) {} }
+                } catch (error) {}
+            }
+            function restoreSetupState(progress) {
+                if (progress.account_created) accountCreated = true;
+                if (progress.two_factor_enabled) twoFactorEnabled = true;
+                if (progress.username && usernameInput) usernameInput.value = progress.username;
+                if (progress.current_step) showStep(progress.current_step);
+                else showStep(1);
+            }
+            async function saveSetupProgress(stepData) {
+                stepData = stepData || {};
+                const progress = { current_step: currentStep, completed_steps: getCompletedSteps(), account_created: accountCreated, two_factor_enabled: twoFactorEnabled, username: usernameInput ? usernameInput.value : null, timestamp: new Date().toISOString(), ...stepData };
+                localStorage.setItem('sniparr-setup-progress', JSON.stringify(progress));
+                try { await fetch('./api/setup/progress', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ progress }) }); } catch (e) {}
+            }
+            function getCompletedSteps() {
+                const completed = [];
+                document.querySelectorAll('.setup-stepper-item.completed').forEach((s, i) => { completed.push(i + 1); });
+                return completed;
+            }
+            async function clearSetupProgress() {
+                localStorage.removeItem('sniparr-setup-progress');
+                try { await fetch('./api/setup/clear', { method: 'POST' }); } catch (e) {}
+            }
+
+            loadSetupProgress();
+
+            document.addEventListener('click', function(e) { if (e.target === document.getElementById('qrModal')) closeQRModal(); });
+            document.addEventListener('keydown', function(e) { if (e.key === 'Escape') closeQRModal(); });
+        });
+
+        function copySecretKeySetup() {
+            const secretKey = document.getElementById('secretKey').textContent;
+            if (!secretKey || secretKey === 'Generating...') return;
+            function showCopied() {
+                const btn = document.querySelector('#twoFactorSetup .copy-button');
+                if (!btn) return; const o = btn.innerHTML;
+                btn.innerHTML = '<i class="fas fa-check"></i> Copied!'; btn.style.color = '#28a745';
+                setTimeout(() => { btn.innerHTML = o; btn.style.color = ''; }, 2000);
+            }
+            function fallback(text, cb) { const ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px'; document.body.appendChild(ta); ta.select(); try { document.execCommand('copy'); if (cb) cb(); } catch (e) {} document.body.removeChild(ta); }
+            if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(secretKey).then(showCopied).catch(() => fallback(secretKey, showCopied));
+            else fallback(secretKey, showCopied);
+        }
+
+        // ════════════════════════════════════════════════════════
+        //  Rotating Backdrop — TMDB trending images
+        // ════════════════════════════════════════════════════════
+        (function() {
+            var layerA = document.getElementById('backdropA');
+            var layerB = document.getElementById('backdropB');
+            if (!layerA || !layerB) return;
+
+            var images = [];
+            var preloaded = {};
+            var currentIndex = -1;
+            var activeLayer = 'A'; // which layer is currently visible
+            var INTERVAL = 10000;  // 10 seconds between transitions
+            var rotationTimer = null;
+
+            // Shuffle array (Fisher-Yates)
+            function shuffle(arr) {
+                for (var i = arr.length - 1; i > 0; i--) {
+                    var j = Math.floor(Math.random() * (i + 1));
+                    var t = arr[i]; arr[i] = arr[j]; arr[j] = t;
+                }
+                return arr;
+            }
+
+            // Preload an image and return a promise
+            function preload(url) {
+                if (preloaded[url]) return Promise.resolve(url);
+                return new Promise(function(resolve) {
+                    var img = new Image();
+                    img.onload = function() { preloaded[url] = true; resolve(url); };
+                    img.onerror = function() { resolve(null); };
+                    img.src = url;
+                });
+            }
+
+            // Preload the next N images ahead
+            function preloadAhead(fromIndex, count) {
+                for (var i = 0; i < count; i++) {
+                    var idx = (fromIndex + i) % images.length;
+                    preload(images[idx]);
+                }
+            }
+
+            // Crossfade to the next image
+            function showNext() {
+                if (images.length === 0) return;
+                currentIndex = (currentIndex + 1) % images.length;
+                var url = images[currentIndex];
+
+                // Determine which layer to fade IN (the one currently hidden)
+                var showLayer, hideLayer;
+                if (activeLayer === 'A') {
+                    showLayer = layerB; hideLayer = layerA;
+                    activeLayer = 'B';
+                } else {
+                    showLayer = layerA; hideLayer = layerB;
+                    activeLayer = 'A';
+                }
+
+                // Set the image on the incoming layer (still invisible)
+                showLayer.style.backgroundImage = 'url(' + url + ')';
+
+                // Trigger reflow so the transition works
+                void showLayer.offsetWidth;
+
+                // Crossfade: bring the new layer in, fade the old one out
+                showLayer.classList.add('visible');
+                hideLayer.classList.remove('visible');
+
+                // Preload next few
+                preloadAhead(currentIndex + 1, 3);
+            }
+
+            // Fetch backdrop URLs and start rotation
+            function init() {
+                fetch('./api/setup/backdrops')
+                    .then(function(r) { return r.json(); })
+                    .then(function(data) {
+                        if (!data.success || !data.images || data.images.length === 0) return;
+                        images = shuffle(data.images.slice());
+
+                        // Preload first 3 images, then start
+                        Promise.all([preload(images[0]), preload(images[1] || images[0]), preload(images[2] || images[0])])
+                            .then(function() {
+                                showNext(); // show first image immediately
+                                rotationTimer = setInterval(showNext, INTERVAL);
+                            });
+                    })
+                    .catch(function() { /* fail silently — no backdrops is fine */ });
+            }
+
+            // Start when DOM is ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', init);
+            } else {
+                init();
+            }
+        })();
+    </script>
+</body>
+</html>

@@ -1,0 +1,1020 @@
+/* ============================================================
+   Instance Editor — Modern Redesign
+   Scoped to #instanceEditorSection to avoid global leaks.
+   ============================================================ */
+
+/* ---- Section root ---- */
+#instanceEditorSection,
+#movieHuntInstanceEditorSection,
+#mediaHuntInstanceEditorSection {
+    display: none;
+    width: 100%;
+    height: auto !important;
+    min-height: 100vh;
+    overflow-y: visible !important;
+    overflow-x: hidden;
+    padding: 0;
+    margin: 0;
+    position: relative !important;
+    z-index: 1;
+}
+
+#instanceEditorSection.active,
+#movieHuntInstanceEditorSection.active,
+#mediaHuntInstanceEditorSection.active {
+    display: block !important;
+}
+
+#instanceEditorContainer,
+#movieHuntInstanceEditorContainer,
+#mediaHuntInstanceEditorContainer {
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    padding: 30px var(--page-gap, 15px);
+    padding-bottom: 150px;
+    min-height: 100%;
+}
+
+/* ============================================================
+   Page Header Bar — matches Smart Hunt (reqset-toolbar) design
+   Used by page_header_partial across Media Hunt, Apps, Settings, etc.
+   ============================================================ */
+.page-header-bar.reqset-toolbar,
+.reqset-toolbar.page-header-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 0;
+    margin-bottom: 20px;
+    padding: 9px 14px;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 10px;
+    gap: 12px;
+}
+
+.page-header-bar .reqset-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.page-header-bar .reqset-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Sponsor inside header bar — hidden (sponsors in sidebar only) */
+.page-header-bar .app-banners-row {
+    display: none !important;
+}
+
+a.reqset-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted, #94a3b8);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    text-decoration: none;
+}
+
+a.reqset-back-btn:hover,
+button.reqset-back-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text-primary, #e2e8f0);
+}
+
+button.reqset-back-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 11px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--text-muted, #94a3b8);
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-family: inherit;
+}
+
+.page-header-bar .reqset-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-primary, #e2e8f0);
+}
+
+.page-header-bar .reqset-breadcrumb i:first-child {
+    color: #818cf8;
+}
+
+.page-header-bar .reqset-breadcrumb-sep {
+    font-size: 9px;
+    color: var(--text-muted, #64748b);
+}
+
+.page-header-bar .reqset-save-btn,
+.page-header-bar .page-header-save {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 15px;
+    border-radius: 6px;
+    border: none;
+    background: linear-gradient(135deg, #6366f1, #818cf8);
+    color: #fff;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+}
+
+.page-header-bar .reqset-save-btn:hover:not(:disabled),
+.page-header-bar .page-header-save:hover:not(:disabled) {
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4);
+}
+
+.page-header-bar .reqset-save-btn:disabled,
+.page-header-bar .page-header-save:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+/* ============================================================
+   Header / Toolbar — unified across all content sections except home
+   ============================================================ */
+.main-content .instance-editor-header,
+#instanceEditorSection .instance-editor-header,
+#movieHuntInstanceEditorSection .instance-editor-header,
+#mediaHuntInstanceEditorSection .instance-editor-header,
+#mediaHuntInstanceManagementSection .instance-editor-header,
+#movieManagementSection .instance-editor-header,
+#mediaHuntProfilesSection .instance-editor-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding: 14px 20px;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 14px;
+    gap: 16px;
+}
+
+.instance-editor-nav {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+}
+
+/* Breadcrumb */
+.instance-editor-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: #64748b;
+    min-width: 0;
+}
+
+.ie-breadcrumb-app {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    color: #94a3b8;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+.ie-breadcrumb-app i {
+    font-size: 0.95rem;
+    opacity: 0.7;
+}
+
+.instance-editor-breadcrumb .fa-chevron-right {
+    font-size: 0.6rem;
+    color: #475569;
+}
+
+.ie-breadcrumb-name {
+    color: #e2e8f0;
+    font-weight: 500;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 260px;
+}
+
+/* ---- Buttons ---- */
+.main-content .ie-btn,
+#instanceEditorSection .ie-btn,
+#movieHuntInstanceEditorSection .ie-btn,
+#mediaHuntInstanceEditorSection .ie-btn,
+#mediaHuntInstanceManagementSection .ie-btn,
+#movieManagementSection .ie-btn,
+#mediaHuntProfilesSection .ie-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 18px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    line-height: 1.2;
+}
+
+/* Ghost back button */
+.main-content .ie-btn-ghost,
+#instanceEditorSection .ie-btn-ghost,
+#movieHuntInstanceEditorSection .ie-btn-ghost,
+#mediaHuntInstanceEditorSection .ie-btn-ghost,
+#mediaHuntInstanceManagementSection .ie-btn-ghost,
+#movieManagementSection .ie-btn-ghost,
+#mediaHuntProfilesSection .ie-btn-ghost {
+    background: rgba(148, 163, 184, 0.08);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    color: #94a3b8;
+}
+
+.main-content .ie-btn-ghost:hover,
+#instanceEditorSection .ie-btn-ghost:hover,
+#movieHuntInstanceEditorSection .ie-btn-ghost:hover,
+#mediaHuntInstanceEditorSection .ie-btn-ghost:hover,
+#mediaHuntInstanceManagementSection .ie-btn-ghost:hover,
+#movieManagementSection .ie-btn-ghost:hover,
+#mediaHuntProfilesSection .ie-btn-ghost:hover {
+    background: rgba(148, 163, 184, 0.15);
+    border-color: rgba(148, 163, 184, 0.22);
+    color: #e2e8f0;
+    transform: translateX(-2px);
+}
+
+/* Save button — disabled */
+.main-content .save-btn-dynamic,
+#instanceEditorSection .save-btn-dynamic,
+#movieHuntInstanceEditorSection .save-btn-dynamic,
+#mediaHuntInstanceEditorSection .save-btn-dynamic {
+    background: rgba(71, 85, 105, 0.35) !important;
+    color: rgba(255, 255, 255, 0.3) !important;
+    cursor: not-allowed !important;
+    border: 1px solid rgba(148, 163, 184, 0.06) !important;
+    opacity: 0.7;
+    box-shadow: none !important;
+}
+
+/* Save button — enabled */
+.main-content .save-btn-dynamic.enabled,
+#instanceEditorSection .save-btn-dynamic.enabled,
+#movieHuntInstanceEditorSection .save-btn-dynamic.enabled,
+#mediaHuntInstanceEditorSection .save-btn-dynamic.enabled {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+    color: #fff !important;
+    cursor: pointer !important;
+    opacity: 1 !important;
+    border: none !important;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35), 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.main-content .save-btn-dynamic.enabled:hover,
+#instanceEditorSection .save-btn-dynamic.enabled:hover,
+#movieHuntInstanceEditorSection .save-btn-dynamic.enabled:hover,
+#mediaHuntInstanceEditorSection .save-btn-dynamic.enabled:hover {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45), 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* ============================================================
+   Grid Layout
+   ============================================================ */
+#instance-editor-content *,
+#movie-snipe-instance-editor-content *,
+#media-snipe-instance-editor-content * {
+    box-sizing: border-box !important;
+}
+
+#instanceEditorSection .editor-grid,
+#movieHuntInstanceEditorSection .editor-grid,
+#mediaHuntInstanceEditorSection .editor-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(360px, 1fr));
+    gap: 22px;
+    padding: 0;
+    width: 100%;
+    align-items: start;
+}
+
+/* NZB Sniparr client: single column, expand naturally across */
+#instanceEditorSection .editor-grid.editor-grid-nzbhunt {
+    grid-template-columns: 1fr;
+}
+#instanceEditorSection .editor-grid.editor-grid-nzbhunt .editor-section-single {
+    width: 100%;
+}
+
+/* ============================================================
+   Section Cards — Glass-morphism
+   ============================================================ */
+#instanceEditorSection .editor-section,
+#movieHuntInstanceEditorSection .editor-section,
+#mediaHuntInstanceEditorSection .editor-section {
+    background: rgba(30, 41, 59, 0.32);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.07);
+    border-radius: 16px;
+    padding: 26px 28px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    overflow: hidden;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+}
+
+#instanceEditorSection .editor-section:hover,
+#movieHuntInstanceEditorSection .editor-section:hover,
+#mediaHuntInstanceEditorSection .editor-section:hover {
+    border-color: rgba(148, 163, 184, 0.14);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+/* ============================================================
+   Section Titles
+   ============================================================ */
+#instanceEditorSection .editor-section-title,
+#movieHuntInstanceEditorSection .editor-section-title,
+#mediaHuntInstanceEditorSection .editor-section-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    margin-bottom: 22px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.07);
+}
+
+#instanceEditorSection .editor-section-title .section-title-text,
+#movieHuntInstanceEditorSection .editor-section-title .section-title-text,
+#mediaHuntInstanceEditorSection .editor-section-title .section-title-text {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+}
+
+#instanceEditorSection .editor-section-title .section-title-icon,
+#movieHuntInstanceEditorSection .editor-section-title .section-title-icon,
+#mediaHuntInstanceEditorSection .editor-section-title .section-title-icon {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 0.8rem;
+}
+
+/* Per-section accent colors */
+.section-title-icon.accent-connection {
+    background: rgba(99, 102, 241, 0.12);
+    color: #818cf8;
+}
+.section-title-icon.accent-search {
+    background: rgba(16, 185, 129, 0.12);
+    color: #34d399;
+}
+.section-title-icon.accent-stateful {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+}
+.section-title-icon.accent-additional {
+    background: rgba(249, 115, 22, 0.12);
+    color: #fb923c;
+}
+.section-title-icon.accent-tags {
+    background: rgba(139, 92, 246, 0.12);
+    color: #a78bfa;
+}
+.section-title-icon.accent-advanced {
+    background: rgba(100, 116, 139, 0.12);
+    color: #94a3b8;
+}
+.section-title-icon.accent-seed {
+    background: rgba(6, 182, 212, 0.12);
+    color: #22d3ee;
+}
+.section-title-icon.accent-exempt {
+    background: rgba(239, 68, 68, 0.12);
+    color: #f87171;
+}
+
+/* Header row with title + status pill (e.g. INFORMATION + Enabled) */
+#instanceEditorSection .editor-section-header-inline,
+#movieHuntInstanceEditorSection .editor-section-header-inline,
+#mediaHuntInstanceEditorSection .editor-section-header-inline {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-bottom: 22px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+}
+
+/* ============================================================
+   Field Groups & Setting Items
+   ============================================================ */
+#instanceEditorSection .editor-field-group,
+#movieHuntInstanceEditorSection .editor-field-group,
+#mediaHuntInstanceEditorSection .editor-field-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 22px;
+    width: 100%;
+}
+
+#instanceEditorSection .editor-field-group:last-child,
+#movieHuntInstanceEditorSection .editor-field-group:last-child,
+#mediaHuntInstanceEditorSection .editor-field-group:last-child {
+    margin-bottom: 0;
+}
+
+#instanceEditorSection .editor-setting-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    align-items: flex-start;
+}
+
+/* flex-row override is handled in the "Toggles — PERMANENT FIX" section below */
+
+/* ---- Labels ---- */
+#instanceEditorSection .editor-setting-item label,
+#movieHuntInstanceEditorSection .editor-setting-item label,
+#mediaHuntInstanceEditorSection .editor-setting-item label {
+    color: #e2e8f0;
+    font-weight: 500;
+    font-size: 0.9rem;
+    margin: 0 !important;
+    width: auto !important;
+    display: block !important;
+    text-align: left !important;
+    letter-spacing: 0.01em;
+}
+
+/* ---- Inputs / Selects ---- */
+#instanceEditorSection .editor-setting-item input[type="text"],
+#instanceEditorSection .editor-setting-item input[type="number"],
+#instanceEditorSection .editor-setting-item input[type="password"],
+#instanceEditorSection .editor-field-group input[type="text"],
+#instanceEditorSection .editor-field-group input[type="number"],
+#instanceEditorSection .editor-field-group input[type="password"],
+#instanceEditorSection .editor-setting-item select,
+#instanceEditorSection .editor-field-group select,
+#movieHuntInstanceEditorSection .editor-setting-item input[type="text"],
+#movieHuntInstanceEditorSection .editor-setting-item input[type="number"],
+#movieHuntInstanceEditorSection .editor-setting-item input[type="password"],
+#movieHuntInstanceEditorSection .editor-field-group input[type="text"],
+#movieHuntInstanceEditorSection .editor-field-group input[type="number"],
+#movieHuntInstanceEditorSection .editor-field-group input[type="password"],
+#movieHuntInstanceEditorSection .editor-setting-item select,
+#movieHuntInstanceEditorSection .editor-field-group select,
+#mediaHuntInstanceEditorSection .editor-setting-item input[type="text"],
+#mediaHuntInstanceEditorSection .editor-setting-item input[type="number"],
+#mediaHuntInstanceEditorSection .editor-setting-item input[type="password"],
+#mediaHuntInstanceEditorSection .editor-field-group input[type="text"],
+#mediaHuntInstanceEditorSection .editor-field-group input[type="number"],
+#mediaHuntInstanceEditorSection .editor-field-group input[type="password"],
+#mediaHuntInstanceEditorSection .editor-setting-item select,
+#mediaHuntInstanceEditorSection .editor-field-group select {
+    width: 100%;
+    padding: 11px 14px;
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    background: rgba(15, 23, 42, 0.5);
+    color: #f1f5f9;
+    font-size: 0.925rem;
+    transition: all 0.2s ease;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.08);
+    margin: 0 !important;
+    line-height: 1.4;
+}
+
+#instanceEditorSection .editor-setting-item select,
+#instanceEditorSection .editor-field-group select,
+#movieHuntInstanceEditorSection .editor-setting-item select,
+#movieHuntInstanceEditorSection .editor-field-group select,
+#mediaHuntInstanceEditorSection .editor-setting-item select,
+#mediaHuntInstanceEditorSection .editor-field-group select {
+    cursor: pointer;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%2394a3b8' d='M6 8L1 3h10z'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 14px center;
+    padding-right: 38px;
+}
+
+#instanceEditorSection .editor-setting-item input:focus,
+#instanceEditorSection .editor-setting-item select:focus,
+#instanceEditorSection .editor-field-group input:focus,
+#instanceEditorSection .editor-field-group select:focus,
+#movieHuntInstanceEditorSection .editor-setting-item input:focus,
+#movieHuntInstanceEditorSection .editor-setting-item select:focus,
+#movieHuntInstanceEditorSection .editor-field-group input:focus,
+#movieHuntInstanceEditorSection .editor-field-group select:focus,
+#mediaHuntInstanceEditorSection .editor-setting-item input:focus,
+#mediaHuntInstanceEditorSection .editor-setting-item select:focus,
+#mediaHuntInstanceEditorSection .editor-field-group input:focus,
+#mediaHuntInstanceEditorSection .editor-field-group select:focus {
+    border-color: rgba(99, 102, 241, 0.45);
+    outline: none;
+    background: rgba(15, 23, 42, 0.7);
+    box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.08), inset 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+
+#instanceEditorSection .editor-setting-item input::placeholder,
+#instanceEditorSection .editor-field-group input::placeholder,
+#movieHuntInstanceEditorSection .editor-setting-item input::placeholder,
+#movieHuntInstanceEditorSection .editor-field-group input::placeholder,
+#mediaHuntInstanceEditorSection .editor-setting-item input::placeholder,
+#mediaHuntInstanceEditorSection .editor-field-group input::placeholder {
+    color: #4a5568;
+}
+
+/* ---- Help Text ---- */
+#instanceEditorSection .editor-help-text,
+#movieHuntInstanceEditorSection .editor-help-text,
+#mediaHuntInstanceEditorSection .editor-help-text {
+    color: #64748b;
+    font-size: 0.82rem;
+    margin: 8px 0 0 0 !important;
+    padding-left: 1px;
+    line-height: 1.5;
+    text-align: left !important;
+    width: 100%;
+}
+
+#instanceEditorSection .editor-help-text a,
+#movieHuntInstanceEditorSection .editor-help-text a,
+#mediaHuntInstanceEditorSection .editor-help-text a {
+    transition: opacity 0.2s ease;
+}
+#instanceEditorSection .editor-help-text a:hover,
+#movieHuntInstanceEditorSection .editor-help-text a:hover,
+#mediaHuntInstanceEditorSection .editor-help-text a:hover {
+    opacity: 0.8;
+}
+
+/* ============================================================
+   Connection Status Badges
+   ============================================================ */
+#instanceEditorSection .connection-status,
+#movieHuntInstanceEditorSection .connection-status,
+#mediaHuntInstanceEditorSection .connection-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 6px 13px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    text-transform: none;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    white-space: nowrap;
+    flex-shrink: 0;
+    transition: all 0.3s ease;
+}
+
+#instanceEditorSection .connection-status.checking,
+#movieHuntInstanceEditorSection .connection-status.checking,
+#mediaHuntInstanceEditorSection .connection-status.checking {
+    background: rgba(99, 102, 241, 0.1);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+#instanceEditorSection .connection-status.success,
+#movieHuntInstanceEditorSection .connection-status.success,
+#mediaHuntInstanceEditorSection .connection-status.success {
+    background: rgba(16, 185, 129, 0.1);
+    color: #34d399;
+    border: 1px solid rgba(16, 185, 129, 0.22);
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.08);
+}
+
+#instanceEditorSection .connection-status.error,
+#movieHuntInstanceEditorSection .connection-status.error,
+#mediaHuntInstanceEditorSection .connection-status.error {
+    background: rgba(239, 68, 68, 0.1);
+    color: #f87171;
+    border: 1px solid rgba(239, 68, 68, 0.2);
+}
+
+/* ============================================================
+   Toggles — Instance Editor overrides
+   Base toggle definition is in style.css (single source of truth).
+   Only the flex-row layout and checked-colour override are here.
+   ============================================================ */
+
+/* --- Toggle row: label + toggle on the same line --- */
+#instanceEditorSection .editor-setting-item.flex-row,
+#movieHuntInstanceEditorSection .editor-setting-item.flex-row,
+#mediaHuntInstanceEditorSection .editor-setting-item.flex-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center !important;
+    column-gap: 16px !important;
+    width: 100%;
+}
+
+/* Text label fills remaining space; toggle stays at natural width */
+#instanceEditorSection .editor-setting-item.flex-row > label:not(.toggle-switch),
+#movieHuntInstanceEditorSection .editor-setting-item.flex-row > label:not(.toggle-switch),
+#mediaHuntInstanceEditorSection .editor-setting-item.flex-row > label:not(.toggle-switch) {
+    min-width: 0;
+    margin: 0 !important;
+    overflow-wrap: anywhere;
+}
+
+/* Toggle as a flex child — don't grow, don't shrink */
+#instanceEditorSection .toggle-switch,
+#movieHuntInstanceEditorSection .toggle-switch,
+#mediaHuntInstanceEditorSection .toggle-switch {
+    flex: 0 0 44px !important;
+    margin: 0 !important;
+    justify-self: end;
+}
+
+/* Instance editor uses indigo checked colour */
+#instanceEditorSection input:checked + .toggle-slider,
+#movieHuntInstanceEditorSection input:checked + .toggle-slider,
+#mediaHuntInstanceEditorSection input:checked + .toggle-slider {
+    background: #6366f1 !important;
+    border-color: rgba(99, 102, 241, 0.5) !important;
+}
+
+/* ============================================================
+   Reset State Button
+   ============================================================ */
+#instanceEditorSection .btn-reset-state,
+#movieHuntInstanceEditorSection .btn-reset-state,
+#mediaHuntInstanceEditorSection .btn-reset-state {
+    width: 100%;
+    justify-content: center;
+    padding: 12px;
+    margin-bottom: 15px;
+    border-radius: 10px;
+    transition: all 0.25s ease;
+}
+
+/* ============================================================
+   State Status Display (green box)
+   ============================================================ */
+#instanceEditorSection #state-status-display,
+#movieHuntInstanceEditorSection #state-status-display,
+#movieHuntInstanceEditorSection #mh-state-status-display,
+#mediaHuntInstanceEditorSection #state-status-display,
+#mediaHuntInstanceEditorSection #mh-state-status-display {
+    border-radius: 12px !important;
+}
+
+/* ============================================================
+   Warning / Info Boxes
+   ============================================================ */
+#instanceEditorSection .ie-warning-box,
+#movieHuntInstanceEditorSection .ie-warning-box,
+#mediaHuntInstanceEditorSection .ie-warning-box {
+    padding: 12px 16px;
+    border-radius: 10px;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+#instanceEditorSection .ie-warning-box.warn-amber,
+#movieHuntInstanceEditorSection .ie-warning-box.warn-amber,
+#mediaHuntInstanceEditorSection .ie-warning-box.warn-amber {
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fcd34d;
+}
+
+#instanceEditorSection .ie-warning-box.warn-red,
+#movieHuntInstanceEditorSection .ie-warning-box.warn-red,
+#mediaHuntInstanceEditorSection .ie-warning-box.warn-red {
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    color: #fca5a5;
+}
+
+/* ============================================================
+   Disabled / Readonly Fields
+   ============================================================ */
+#instanceEditorSection .editor-field-disabled input,
+#instanceEditorSection .editor-field-disabled select,
+#instanceEditorSection .editor-field-disabled .toggle-switch,
+#movieHuntInstanceEditorSection .editor-field-disabled input,
+#movieHuntInstanceEditorSection .editor-field-disabled select,
+#movieHuntInstanceEditorSection .editor-field-disabled .toggle-switch,
+#mediaHuntInstanceEditorSection .editor-field-disabled input,
+#mediaHuntInstanceEditorSection .editor-field-disabled select,
+#mediaHuntInstanceEditorSection .editor-field-disabled .toggle-switch {
+    opacity: 0.45;
+    pointer-events: none;
+    cursor: not-allowed;
+}
+
+#instanceEditorSection .editor-field-disabled label,
+#movieHuntInstanceEditorSection .editor-field-disabled label,
+#mediaHuntInstanceEditorSection .editor-field-disabled label {
+    opacity: 0.45;
+}
+
+#instanceEditorSection .editor-field-readonly .editor-input-readonly,
+#instanceEditorSection input.editor-input-readonly,
+#movieHuntInstanceEditorSection .editor-field-readonly .editor-input-readonly,
+#movieHuntInstanceEditorSection input.editor-input-readonly,
+#mediaHuntInstanceEditorSection .editor-field-readonly .editor-input-readonly,
+#mediaHuntInstanceEditorSection input.editor-input-readonly {
+    background: rgba(71, 85, 105, 0.3) !important;
+    color: rgba(148, 163, 184, 0.85) !important;
+    cursor: not-allowed !important;
+    border-color: rgba(148, 163, 184, 0.1) !important;
+}
+
+/* ============================================================
+   Exempt Tags
+   ============================================================ */
+#instanceEditorSection .exempt-tag-chip,
+#movieHuntInstanceEditorSection .exempt-tag-chip,
+#mediaHuntInstanceEditorSection .exempt-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    background: rgba(220, 38, 38, 0.85);
+    color: #fff;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    transition: all 0.2s ease;
+}
+
+#instanceEditorSection .exempt-tag-chip:hover,
+#movieHuntInstanceEditorSection .exempt-tag-chip:hover,
+#mediaHuntInstanceEditorSection .exempt-tag-chip:hover {
+    background: rgba(220, 38, 38, 1);
+}
+
+#instanceEditorSection .exempt-tag-chip .exempt-tag-remove,
+#movieHuntInstanceEditorSection .exempt-tag-chip .exempt-tag-remove,
+#mediaHuntInstanceEditorSection .exempt-tag-chip .exempt-tag-remove {
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.15s ease;
+}
+
+#instanceEditorSection .exempt-tag-chip .exempt-tag-remove:hover,
+#movieHuntInstanceEditorSection .exempt-tag-chip .exempt-tag-remove:hover,
+#mediaHuntInstanceEditorSection .exempt-tag-chip .exempt-tag-remove:hover {
+    opacity: 1;
+}
+
+/* Exempt tags nested section */
+#instanceEditorSection .editor-section .editor-section.exempt-tags-subsection,
+#movieHuntInstanceEditorSection .editor-section .editor-section.exempt-tags-subsection,
+#mediaHuntInstanceEditorSection .editor-section .editor-section.exempt-tags-subsection {
+    border: 1px solid rgba(239, 68, 68, 0.15);
+    border-radius: 12px;
+    padding: 18px;
+    background: rgba(239, 68, 68, 0.04);
+    margin-top: 16px;
+}
+
+/* Sub-boxes for tag setting groups (missing/upgrade/shows) */
+#instanceEditorSection .tag-sub-box,
+#movieHuntInstanceEditorSection .tag-sub-box,
+#mediaHuntInstanceEditorSection .tag-sub-box {
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    border-radius: 12px;
+    padding: 14px 14px 10px;
+    background: rgba(15, 23, 42, 0.22);
+    margin-bottom: 24px !important;
+}
+
+#instanceEditorSection .tag-sub-box .editor-help-text {
+    margin-bottom: 0 !important;
+}
+
+/* Indexer category pills */
+#instanceEditorSection .indexer-categories-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+    min-height: 24px;
+}
+
+#instanceEditorSection .indexer-category-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    border-radius: 8px;
+    color: #fca5a5;
+    font-size: 0.8125rem;
+}
+
+#instanceEditorSection .indexer-category-pill .indexer-category-remove {
+    cursor: pointer;
+    color: #fca5a5;
+    font-size: 14px;
+    padding: 0 2px;
+    transition: color 0.2s;
+}
+
+#instanceEditorSection .indexer-category-pill .indexer-category-remove:hover {
+    color: #fff;
+}
+
+/* ============================================================
+   Hourly Cap Warning
+   ============================================================ */
+#instanceEditorSection .editor-hourly-cap-warning {
+    margin-top: 8px;
+    padding: 12px 16px;
+    background: rgba(239, 68, 68, 0.1);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+    border-radius: 10px;
+    color: #fca5a5;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+/* ============================================================
+   Enable-status icon (inline with label)
+   ============================================================ */
+#instanceEditorSection #enable-status-icon {
+    margin-left: 6px;
+}
+
+/* ============================================================
+   Responsive
+   ============================================================ */
+@media (max-width: 900px) {
+    #instanceEditorSection .editor-grid,
+    #movieHuntInstanceEditorSection .editor-grid,
+    #mediaHuntInstanceEditorSection .editor-grid {
+        grid-template-columns: 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    #instanceEditorContainer,
+    #movieHuntInstanceEditorContainer,
+    #mediaHuntInstanceEditorContainer {
+        padding: 16px 12px;
+        padding-bottom: 100px;
+    }
+
+    #instanceEditorSection .instance-editor-header,
+    #movieHuntInstanceEditorSection .instance-editor-header,
+    #mediaHuntInstanceEditorSection .instance-editor-header,
+    #movieManagementSection .instance-editor-header,
+    #mediaHuntProfilesSection .instance-editor-header {
+        /* Handled by Universal Mobile Header Truth in components.css */
+    }
+
+    .instance-editor-nav {
+        /* Handled by Universal Mobile Header Truth in components.css */
+    }
+
+    .instance-editor-breadcrumb {
+        /* Handled by Universal Mobile Header Truth in components.css */
+    }
+
+    #instanceEditorSection .editor-section,
+    #movieHuntInstanceEditorSection .editor-section,
+    #mediaHuntInstanceEditorSection .editor-section {
+        padding: 20px 18px;
+        border-radius: 14px;
+    }
+
+    #instanceEditorSection .editor-section-title,
+    #movieHuntInstanceEditorSection .editor-section-title,
+    #mediaHuntInstanceEditorSection .editor-section-title {
+        flex-direction: column;
+        align-items: flex-start !important;
+        gap: 10px;
+    }
+
+    #instanceEditorSection .connection-status,
+    #movieHuntInstanceEditorSection .connection-status,
+    #mediaHuntInstanceEditorSection .connection-status {
+        max-width: 100%;
+    }
+
+    #instanceEditorSection .ie-btn,
+    #movieHuntInstanceEditorSection .ie-btn,
+    #mediaHuntInstanceEditorSection .ie-btn,
+    #movieManagementSection .ie-btn,
+    #mediaHuntProfilesSection .ie-btn {
+        padding: 8px 14px;
+        font-size: 0.82rem;
+    }
+}
+
+@media (max-width: 480px) {
+    #instanceEditorSection .editor-grid,
+    #movieHuntInstanceEditorSection .editor-grid,
+    #mediaHuntInstanceEditorSection .editor-grid {
+        gap: 16px;
+    }
+
+    #instanceEditorSection .editor-section,
+    #movieHuntInstanceEditorSection .editor-section,
+    #mediaHuntInstanceEditorSection .editor-section {
+        padding: 18px 14px;
+    }
+}
+
+/* ============================================================
+   Animations
+   ============================================================ */
+#instanceEditorSection .connection-status.success {
+    box-shadow: 0 0 10px rgba(16, 185, 129, 0.1);
+}
+
+@keyframes ie-spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ============================================================
+   Client editor title styling
+   ============================================================ */
+.client-editor-title-app {
+    color: #f59e0b;
+    font-weight: 700;
+}
+
+/* ============================================================
+   Indexer editor: locked preset display + readonly fields
+   ============================================================ */
+.indexer-preset-locked {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(99, 102, 241, 0.08);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 8px;
+    color: #c7d2fe;
+    font-size: 14px;
+    font-weight: 500;
+}
+.indexer-preset-locked i:first-child {
+    color: #818cf8;
+    font-size: 15px;
+}
+.indexer-preset-lock-icon {
+    margin-left: auto;
+    color: #64748b;
+    font-size: 12px;
+}
+.editor-readonly {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background: rgba(15, 23, 42, 0.5) !important;
+    border-color: rgba(71, 85, 105, 0.4) !important;
+}

@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My App</title>
+    <link rel="stylesheet" href="./static/css/style.css">
+</head>
+<body>
+    <!-- Pass base URL configuration to JavaScript -->
+    <script nonce="{{ g.csp_nonce }}">
+        window.SNIPARR_BASE_URL = '{{ base_url|default("", true) }}';
+        window.SNIPARR_BASE_URL = window.SNIPARR_BASE_URL; // legacy alias
+    </script>
+    <!-- Pass global scripts -->
+    {% include 'components/scripts.html' %}
+</body>
+</html>

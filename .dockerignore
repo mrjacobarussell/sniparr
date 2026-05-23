@@ -1,0 +1,43 @@
+# Git
+.git
+.gitignore
+.gitmodules
+
+# IDE / Editor
+.cursor
+.kiro
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+# Documentation (not needed at runtime)
+*.md
+LICENSE
+
+# Development / Deployment scripts
+unraid/
+distribution/
+tests/
+venv/
+.env*
+
+# Docker files (prevent recursive builds)
+docker-compose*.yml
+Dockerfile
+.dockerignore
+
+# Python caches
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.pytest_cache
+
+# Node (Dockerfile runs npm install fresh)
+node_modules
+
+# OS files
+.DS_Store
+Thumbs.db

@@ -1,0 +1,2363 @@
+/* ═══════════════════════════════════════════════════════════════════
+   HOME PAGE — consolidated stylesheet
+   All home-section styles in one file.  Loaded only by homeSection.
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   MODERN REDESIGN OVERRIDES — matches Logs/Sniparr Manager design
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ── NZB Sniparr Home Card on Dashboard ────────────────────────────── */
+.nzb-home-card {
+    border: 1px solid rgba(96, 165, 250, 0.15);
+}
+.nzb-home-status-bar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px 24px;
+    padding: 14px 18px;
+    align-items: center;
+}
+.nzb-home-stat {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.88rem;
+    color: #e2e8f0;
+    white-space: nowrap;
+}
+.nzb-home-stat i {
+    color: #60a5fa;
+    font-size: 0.82rem;
+    width: 16px;
+    text-align: center;
+}
+.nzb-home-stat-label {
+    color: #64748b;
+    font-size: 0.78rem;
+    margin-left: 2px;
+}
+@media (max-width: 640px) {
+    .nzb-home-status-bar {
+        gap: 8px 16px;
+        padding: 10px 14px;
+    }
+    .nzb-home-stat {
+        font-size: 0.82rem;
+    }
+}
+
+/* ── NZB Sniparr home warning (configured as client or queue has items, no servers) ────────── */
+#homeSection .nzb-snipe-home-warning {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 20px;
+    margin-bottom: 16px;
+    background: rgba(245, 158, 11, 0.1);
+    border: 1px solid rgba(245, 158, 11, 0.4);
+    border-radius: 12px;
+    color: #94a3b8;
+    font-size: 0.95rem;
+    line-height: 1.5;
+}
+.nzb-snipe-home-warning i {
+    flex-shrink: 0;
+    font-size: 1.25rem;
+    color: #f59e0b;
+    margin-top: 2px;
+}
+.nzb-snipe-home-warning-content {
+    flex: 1;
+}
+.nzb-snipe-home-warning-content strong {
+    color: #e2e8f0;
+    font-weight: 600;
+}
+.nzb-snipe-home-warning-link {
+    color: #fbbf24;
+    font-weight: 500;
+    text-decoration: none;
+    border-bottom: 1px solid rgba(251, 191, 36, 0.5);
+    transition: color 0.15s, border-color 0.15s;
+}
+.nzb-snipe-home-warning-link:hover {
+    color: #fcd34d;
+    border-bottom-color: #fbbf24;
+}
+
+/* ── Section Bar (replaces old card-header) ─────────────────────── */
+.home-section-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 20px 10px 16px;
+    background: rgba(0, 0, 0, 0.15);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: 12px 12px 0 0;
+    margin: -1px -1px 0 -1px;
+}
+
+.home-section-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.home-section-icon {
+    color: #f59e0b;
+    font-size: 0.85rem;
+}
+
+.home-section-title {
+    color: #e2e8f0;
+    font-size: 0.85rem;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.home-section-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: rgba(30, 41, 59, 0.8);
+    color: #94a3b8;
+    cursor: pointer;
+    transition: all 0.2s;
+    font-size: 0.78rem;
+    font-weight: 500;
+}
+
+.home-section-btn:hover {
+    border-color: rgba(99, 102, 241, 0.4);
+    color: #a5b4fc;
+    background: rgba(99, 102, 241, 0.08);
+}
+
+.home-section-btn i {
+    font-size: 0.72rem;
+}
+
+/* ── Stats Card Container — modern dark glass ───────────────────── */
+#homeSection .stats-card {
+    background: rgba(15, 23, 42, 0.6) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+    overflow: hidden;
+}
+
+/* Hide old card-header when new home-section-bar is present */
+#homeSection .stats-card > .card-header {
+    display: none !important;
+}
+
+/* ── Media Stats Container ──────────────────────────────────────── */
+#homeSection .media-stats-container {
+    padding: 16px !important;
+    background: transparent !important;
+}
+
+/* ── App Stats Grid — tighter gap ───────────────────────────────── */
+#homeSection .app-stats-grid {
+    gap: 14px !important;
+}
+
+/* ── FORCE-HIDE old static template cards ──────────────────────── */
+/* Dynamic JS cards have .dynamic-card; the old HTML template cards
+   must never appear regardless of what checkAppConnections does.   */
+#app-stats-grid > .app-stats-card:not(.dynamic-card),
+#app-stats-grid > .app-stats-card-wrapper {
+    display: none !important;
+}
+
+/* ── App Stat Cards — cleaner modern look ───────────────────────── */
+#homeSection .app-stats-card {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    min-height: auto !important;
+    padding: 0 16px 0 16px !important;
+    transition: border-color 0.2s, background 0.2s !important;
+}
+
+#homeSection .app-stats-card:hover {
+    transform: none !important;
+    box-shadow: none !important;
+    border-color: rgba(255, 255, 255, 0.12) !important;
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.85) 0%, rgba(15, 23, 42, 0.9) 100%) !important;
+}
+
+/* Keep the colored top accent but make it more subtle */
+#homeSection .app-stats-card.movie_hunt,
+#homeSection .app-stats-card.tv_hunt  { border-top: 2px solid rgba(245, 158, 11, 0.5) !important; }
+#homeSection .app-stats-card.sonarr  { border-top: 2px solid rgba(99, 102, 241, 0.4) !important; }
+#homeSection .app-stats-card.radarr  { border-top: 2px solid rgba(245, 158, 11, 0.4) !important; }
+#homeSection .app-stats-card.lidarr  { border-top: 2px solid rgba(34, 197, 94, 0.4) !important; }
+#homeSection .app-stats-card.readarr { border-top: 2px solid rgba(168, 85, 247, 0.4) !important; }
+#homeSection .app-stats-card.whisparr { border-top: 2px solid rgba(236, 72, 153, 0.4) !important; }
+#homeSection .app-stats-card.eros    { border-top: 2px solid rgba(236, 72, 153, 0.4) !important; }
+#homeSection .app-stats-card.swaparr { border-top: 2px solid rgba(99, 102, 241, 0.4) !important; }
+
+/* ── App Icon — smaller, cleaner ────────────────────────────────── */
+#homeSection .app-icon-wrapper {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+/* Movie Snipe & TV Snipe (Sniparr) gold ring glow — same ring style as other apps */
+#homeSection .app-stats-card.movie_hunt .app-icon-wrapper::before,
+#homeSection .app-stats-card.tv_hunt .app-icon-wrapper::before {
+    content: '' !important;
+    position: absolute !important;
+    top: -4px; left: -4px; right: -4px; bottom: -4px;
+    border-radius: 50%;
+    border: 2px solid rgba(245, 158, 11, 0.8);
+    box-shadow: 0 0 15px rgba(245, 158, 11, 0.6);
+}
+#homeSection .app-stats-card.movie_hunt .app-icon-wrapper::after,
+#homeSection .app-stats-card.tv_hunt .app-icon-wrapper::after {
+    content: '' !important;
+    position: absolute !important;
+    top: -8px; left: -8px; right: -8px; bottom: -8px;
+    border-radius: 50%;
+    border: 2px solid rgba(245, 158, 11, 0.4);
+    box-shadow: 0 0 20px rgba(245, 158, 11, 0.3);
+    opacity: 0.5;
+}
+
+#homeSection .app-icon-wrapper .app-logo {
+    width: 48px !important;
+    height: 48px !important;
+    filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3));
+}
+
+#homeSection .app-stats-card h4 {
+    font-size: 0.88rem !important;
+    color: #e2e8f0 !important;
+    font-weight: 600 !important;
+    letter-spacing: 0.01em !important;
+}
+
+/* ── Stat Numbers — keep gradients, refine size ─────────────────── */
+#homeSection .app-stats-card .stat-number {
+    font-size: 1.8rem !important;
+    font-weight: 800 !important;
+}
+
+#homeSection .app-stats-card .stat-label {
+    color: #64748b !important;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.05em !important;
+}
+
+/* ── API Progress Bar — refined ─────────────────────────────────── */
+#homeSection .api-progress-bar {
+    height: 4px !important;
+    background: rgba(15, 23, 42, 0.8) !important;
+    border: none !important;
+    border-radius: 4px !important;
+}
+
+#homeSection .hourly-cap-text {
+    font-size: 0.68rem !important;
+    color: #64748b !important;
+}
+
+#homeSection .api-progress-text {
+    font-size: 0.62rem !important;
+    color: #475569 !important;
+}
+
+/* ── Per-card Reset Buttons — subtle icon style ─────────────────── */
+#homeSection .app-stats-card .cycle-reset-button {
+    background: rgba(30, 41, 59, 0.6) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    color: #64748b !important;
+    border-radius: 6px !important;
+    font-size: 0.75rem !important;
+    padding: 4px 12px !important;
+    box-shadow: none !important;
+}
+
+#homeSection .app-stats-card .cycle-reset-button:hover {
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    color: #f87171 !important;
+    background: rgba(239, 68, 68, 0.08) !important;
+    transform: none !important;
+}
+
+/* ── Search Bar — refined ───────────────────────────────────────── */
+#homeSection .global-search-bar {
+    background: rgba(30, 41, 59, 0.8) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 10px !important;
+    box-shadow: none !important;
+    transition: border-color 0.2s, box-shadow 0.2s !important;
+}
+
+#homeSection .global-search-bar:focus-within {
+    border-color: rgba(99, 102, 241, 0.5) !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1) !important;
+}
+
+#homeSection .global-search-bar i {
+    color: #475569 !important;
+}
+
+#homeSection .global-search-bar input {
+    color: #e2e8f0 !important;
+}
+
+#homeSection .global-search-bar input::placeholder {
+    color: #475569 !important;
+}
+
+/* ── Section Titles (Smart Hunt, etc.) — match request/discover page size ────────────── */
+#homeSection .section-title {
+    font-size: 1.4em !important;
+    font-weight: 700 !important;
+    color: #e2e8f0 !important;
+    letter-spacing: 0.02em !important;
+}
+
+/* ── Home Instance Selectors ──────────────────────────────────── */
+#homeSection .home-instance-controls {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+    margin: 0 0 14px 0;
+    padding: 0;
+}
+
+#homeSection .home-instance-controls .instance-selector-container {
+    flex-shrink: 0;
+}
+
+#homeSection .home-instance-controls .instance-select {
+    background: rgba(30, 41, 59, 0.7) !important;
+    border: 1px solid rgba(148, 163, 184, 0.12) !important;
+    border-radius: 8px !important;
+    color: #e2e8f0 !important;
+    padding: 8px 14px !important;
+    font-size: 13px !important;
+    min-width: 180px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+#homeSection .home-instance-controls .instance-select:focus {
+    border-color: rgba(99, 102, 241, 0.5) !important;
+    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.1) !important;
+    outline: none;
+}
+
+@media (max-width: 768px) {
+    #homeSection .home-instance-controls {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 8px;
+    }
+    #homeSection .home-instance-controls .instance-select {
+        width: 100%;
+        min-width: unset;
+    }
+}
+
+/* ── Trending bar accent ────────────────────────────────────────── */
+#homeSection .trending-bar {
+    height: 2px !important;
+    background: linear-gradient(90deg, rgba(99, 102, 241, 0.6) 0%, rgba(99, 102, 241, 0) 100%) !important;
+    border-radius: 2px;
+    margin-bottom: 14px;
+}
+
+/* ── Dashboard grid spacing ─────────────────────────────────────── */
+#homeSection .dashboard-grid {
+    gap: 14px !important;
+}
+
+/* ── Empty State — refined ──────────────────────────────────────── */
+#homeSection #live-hunts-empty-state {
+    background: rgba(15, 23, 42, 0.4) !important;
+    border: 1px dashed rgba(255, 255, 255, 0.08) !important;
+    border-radius: 10px !important;
+}
+
+/* ── Support / Prowlarr cards — match container style ───────────── */
+#homeSection .support-links-card,
+#homeSection .community-hub-card {
+    background: rgba(15, 23, 42, 0.6) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    border-radius: 12px !important;
+    box-shadow: none !important;
+}
+
+/* ── Cycle timer badges — smaller ───────────────────────────────── */
+#homeSection .inline-timer {
+    font-size: 0.72rem !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   END MODERN REDESIGN OVERRIDES
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* ═══════════════════════════════════════════════════════════════════
+   VIEW TOGGLE (grid / list buttons)
+   ═══════════════════════════════════════════════════════════════════ */
+.home-section-bar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.view-toggle-group {
+    display: inline-flex;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.view-toggle-btn {
+    background: transparent;
+    border: none;
+    color: #64748b;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 0.78rem;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.view-toggle-btn + .view-toggle-btn {
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.view-toggle-btn.active {
+    background: rgba(99, 102, 241, 0.15);
+    color: #a5b4fc;
+}
+
+.view-toggle-btn:hover:not(.active) {
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   GROUPED LAYOUT — app-group containers (list mode only)
+   ═══════════════════════════════════════════════════════════════════ */
+.app-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+    grid-column: 1 / -1;
+}
+
+.app-group-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 4px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.app-group-logo {
+    width: 24px;
+    height: 24px;
+    border-radius: 6px;
+    flex-shrink: 0;
+}
+
+.app-group-label {
+    color: #e2e8f0;
+    font-size: 0.88rem;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   CARD DRAG HANDLE (grid mode — inside each card)
+   ═══════════════════════════════════════════════════════════════════ */
+.card-drag-handle {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    cursor: grab;
+    color: #334155;
+    font-size: 0.78rem;
+    padding: 4px 5px;
+    z-index: 5;
+    transition: color 0.2s, background 0.2s;
+    line-height: 1;
+    border-radius: 4px;
+}
+
+.card-drag-handle:hover {
+    color: #94a3b8;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.card-drag-handle:active {
+    cursor: grabbing;
+    color: #a5b4fc;
+}
+
+/* Push card content down so the drag handle doesn't overlap the API bar */
+.app-stats-card.dynamic-card {
+    padding-top: 8px !important;
+}
+.app-stats-card.dynamic-card .hourly-cap-container {
+    margin-top: 18px !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   DRAG HANDLE & SORTABLE FEEDBACK
+   ═══════════════════════════════════════════════════════════════════ */
+.drag-handle {
+    cursor: grab;
+    color: #475569;
+    font-size: 0.78rem;
+    padding: 2px;
+    transition: color 0.2s;
+    flex-shrink: 0;
+}
+
+.drag-handle:hover {
+    color: #94a3b8;
+}
+
+.drag-handle:active {
+    cursor: grabbing;
+}
+
+/* SortableJS ghost element */
+.sortable-ghost {
+    opacity: 0.35;
+    background: rgba(99, 102, 241, 0.08) !important;
+    border: 1px dashed rgba(99, 102, 241, 0.4) !important;
+    border-radius: 10px;
+}
+
+.sortable-chosen {
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   LIST MODE — polished grouped table
+   ═══════════════════════════════════════════════════════════════════ */
+.app-stats-list {
+    display: flex !important;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.app-stats-list .app-group {
+    grid-column: unset;
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    background: rgba(15, 23, 42, 0.5);
+    /* Extend into container padding so headers touch the border */
+    margin: 0 -16px;
+    padding: 0 16px;
+}
+
+.app-stats-list .app-group-header.list-header {
+    margin-bottom: 0;
+    margin-left: -16px;
+    margin-right: -16px;
+    padding: 12px 20px 12px 16px;
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.7), rgba(22, 30, 45, 0.6));
+    border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 0;
+}
+
+.app-list-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.82rem;
+    table-layout: fixed;
+}
+
+/* Column widths for alignment */
+.app-list-table colgroup .col-instance     { width: 20%; }
+.app-list-table colgroup .col-searches    { width: 12%; }
+.app-list-table colgroup .col-upgrades   { width: 12%; }
+.app-list-table colgroup .col-api-status  { width: 32%; }
+.app-list-table colgroup .col-actions     { width: 8%; }
+
+.app-list-table thead th {
+    text-align: left;
+    padding: 8px 20px;
+    color: #475569;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+    background: rgba(15, 23, 42, 0.3);
+}
+
+.app-list-table tbody tr {
+    transition: background 0.15s;
+}
+
+.app-list-table tbody tr:nth-child(even) {
+    background: rgba(255, 255, 255, 0.015);
+}
+
+.app-list-table tbody tr:hover {
+    background: rgba(99, 102, 241, 0.04);
+}
+
+.app-list-table tbody td {
+    padding: 10px 20px;
+    color: #cbd5e1;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.025);
+    white-space: nowrap;
+    vertical-align: middle;
+}
+
+.app-list-table tbody tr:last-child td {
+    border-bottom: none;
+}
+
+.list-instance-name {
+    font-weight: 600;
+    color: #f1f5f9;
+    font-size: 0.84rem;
+}
+
+.list-stat {
+    font-weight: 800;
+    font-size: 0.95rem;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+}
+
+/* Per-app stat colors in list mode */
+.list-stat.movie_hunt { color: #fbbf24; }
+.list-stat.sonarr     { color: #a5b4fc; }
+.list-stat.radarr     { color: #fbbf24; }
+.list-stat.lidarr     { color: #4ade80; }
+.list-stat.readarr    { color: #c084fc; }
+.list-stat.whisparr,
+.list-stat.eros       { color: #f472b6; }
+
+/* API + Status combined cell — two rows to prevent collision */
+.list-api-status {
+    vertical-align: middle;
+    white-space: normal;
+}
+
+.list-api-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+}
+
+.list-status-row {
+    display: flex;
+    align-items: center;
+    min-height: 28px;
+}
+
+.list-api-row .list-api-bar {
+    flex: 0 1 auto;
+    width: 56px;
+    min-width: 36px;
+    max-width: 70px;
+}
+
+.list-api-bar {
+    height: 5px;
+    background: rgba(15, 23, 42, 0.8);
+    border-radius: 4px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.list-api-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+}
+
+/* Per-app progress fill colors in list */
+.list-api-fill.movie_hunt { background: linear-gradient(90deg, #f59e0b, #fbbf24); box-shadow: 0 0 4px rgba(245, 158, 11, 0.3); }
+.list-api-fill.sonarr     { background: linear-gradient(90deg, #6366f1, #a5b4fc); box-shadow: 0 0 4px rgba(99, 102, 241, 0.3); }
+.list-api-fill.radarr     { background: linear-gradient(90deg, #f59e0b, #fbbf24); box-shadow: 0 0 4px rgba(245, 158, 11, 0.3); }
+.list-api-fill.lidarr     { background: linear-gradient(90deg, #22c55e, #4ade80); box-shadow: 0 0 4px rgba(34, 197, 94, 0.3); }
+.list-api-fill.readarr    { background: linear-gradient(90deg, #a855f7, #c084fc); box-shadow: 0 0 4px rgba(168, 85, 247, 0.3); }
+.list-api-fill.whisparr,
+.list-api-fill.eros       { background: linear-gradient(90deg, #ec4899, #f472b6); box-shadow: 0 0 4px rgba(236, 72, 153, 0.3); }
+
+.list-api-text {
+    color: #64748b;
+    font-size: 0.74rem;
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    letter-spacing: 0.02em;
+    min-width: 42px;
+}
+
+/* Status row — timer on its own row, no collision with API */
+.list-status-row .cycle-timer {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 0.76rem;
+    padding: 3px 8px;
+    margin: 0;
+    max-width: none;
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 5px;
+}
+
+.list-status-row .cycle-timer i {
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+.list-status-row .timer-value {
+    font-size: 0.76rem !important;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+}
+
+.list-actions {
+    text-align: right;
+    padding-right: 20px !important; /* Keep refresh button inset from container border */
+}
+
+.list-actions .cycle-reset-button {
+    padding: 4px 10px !important;
+    font-size: 0.72rem !important;
+    border-radius: 6px !important;
+    background: rgba(30, 41, 59, 0.6) !important;
+    border: 1px solid rgba(255, 255, 255, 0.06) !important;
+    color: #64748b !important;
+}
+
+.list-actions .cycle-reset-button:hover {
+    border-color: rgba(239, 68, 68, 0.3) !important;
+    color: #f87171 !important;
+    background: rgba(239, 68, 68, 0.08) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   NARROW DESKTOP — list mode (small but not mobile)
+   Prevents jumbled API + Status when viewport is 769px–1100px
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 1100px) and (min-width: 769px) {
+    .app-list-table colgroup .col-instance    { width: 16%; }
+    .app-list-table colgroup .col-searches   { width: 11%; }
+    .app-list-table colgroup .col-upgrades   { width: 11%; }
+    .app-list-table colgroup .col-api-status { width: 36%; }
+    .app-list-table colgroup .col-actions    { width: 8%; }
+
+    /* Shrink API bar further in narrow view */
+    .list-api-row .list-api-bar {
+        max-width: 52px;
+        min-width: 36px;
+    }
+    .list-api-row { gap: 6px; }
+    /* Abbreviated headers to avoid jumbled "FOUND / SEARCHESUPGRADES" */
+    .app-list-table thead th.col-searches,
+    .app-list-table thead th.col-upgrades {
+        font-size: 0;
+        white-space: nowrap;
+    }
+    .app-list-table thead th.col-searches::after,
+    .app-list-table thead th.col-upgrades::after {
+        content: attr(data-abbr);
+        font-size: 0.62rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+    }
+    .app-list-table thead th {
+        font-size: 0.65rem;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MOBILE ADJUSTMENTS
+   ═══════════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+    /* Keep toggle visible so users can switch */
+    .view-toggle-group {
+        display: flex;
+    }
+
+    /* ── Grid mode on mobile ────────────────────────────────────── */
+    .app-group-cards {
+        grid-template-columns: 1fr;
+    }
+
+    /* Hide drag handles on mobile — too hard to use */
+    .card-drag-handle,
+    .group-drag-handle {
+        display: none !important;
+    }
+
+    /* ── List mode on mobile: card-per-row layout (like logs) ─── */
+    /* Convert table structure to stacked cards */
+    .app-list-table,
+    .app-list-table thead,
+    .app-list-table tbody,
+    .app-list-table th,
+    .app-list-table td,
+    .app-list-table tr {
+        display: block;
+    }
+
+    /* Hide table header — labels will be inline via ::before */
+    .app-list-table thead tr {
+        position: absolute;
+        top: -9999px;
+        left: -9999px;
+    }
+
+    .app-list-table colgroup {
+        display: none;
+    }
+
+    /* Each row becomes a compact card */
+    .app-list-table tbody tr {
+        background: rgba(15, 23, 42, 0.45);
+        border: 1px solid rgba(255, 255, 255, 0.04);
+        border-radius: 10px;
+        margin-bottom: 8px;
+        padding: 12px 14px;
+        position: relative;
+    }
+
+    .app-list-table tbody tr:nth-child(even) {
+        background: rgba(15, 23, 42, 0.55);
+    }
+
+    /* Each td becomes a label:value row */
+    .app-list-table tbody td {
+        border: none;
+        padding: 3px 0;
+        position: relative;
+        padding-left: 38%;
+        text-align: right;
+        font-size: 0.82rem;
+        white-space: normal;
+    }
+
+    .app-list-table tbody td:before {
+        position: absolute;
+        top: 3px;
+        left: 0;
+        width: 36%;
+        text-align: left;
+        font-weight: 700;
+        color: #475569;
+        text-transform: uppercase;
+        font-size: 0.64rem;
+        letter-spacing: 0.05em;
+    }
+
+    /* Label text for each column */
+    .app-list-table tbody td.list-instance-name:before { content: "Instance"; }
+    .app-list-table tbody td.list-stat:nth-of-type(2):before { content: "Searches"; }
+    .app-list-table tbody td.list-stat:nth-of-type(3):before { content: "Upgrades"; }
+    .app-list-table tbody td.list-api-status:before { content: "API / Status"; }
+    .app-list-table tbody td.list-actions:before { content: none; }
+
+    /* Instance name — prominent, full width on mobile */
+    .app-list-table tbody td.list-instance-name {
+        padding-left: 0;
+        text-align: left;
+        font-size: 0.88rem;
+        font-weight: 700;
+        color: #f1f5f9;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        padding-bottom: 6px;
+        margin-bottom: 4px;
+    }
+
+    .app-list-table tbody td.list-instance-name:before { content: none; }
+
+    /* Actions — center the reset button */
+    .app-list-table tbody td.list-actions {
+        padding-left: 0;
+        text-align: center;
+        border-top: 1px solid rgba(255, 255, 255, 0.04);
+        margin-top: 4px;
+        padding-top: 8px;
+    }
+
+    /* API/Status combined cell in mobile card — two rows stack */
+    .app-list-table tbody td.list-api-status {
+        padding-left: 38%;
+    }
+    .list-api-row { margin-bottom: 6px; }
+    .list-status-row { justify-content: flex-end; }
+
+    .list-status-row .cycle-timer {
+        display: inline-flex;
+        font-size: 0.72rem;
+        padding: 2px 6px;
+    }
+
+    /* API bar smaller on mobile */
+    .list-api-row .list-api-bar,
+    .list-api-bar {
+        max-width: 44px;
+        min-width: 36px;
+    }
+
+    .list-api-text {
+        font-size: 0.68rem !important;
+    }
+
+    /* Group header: keep compact */
+    .app-stats-list .app-group-header.list-header {
+        padding: 10px 14px;
+    }
+
+    .app-group-logo {
+        width: 18px !important;
+        height: 18px !important;
+    }
+
+    .app-group-label {
+        font-size: 0.82rem !important;
+    }
+}
+
+/* Extra-small mobile */
+@media (max-width: 480px) {
+    .app-list-table tbody td {
+        padding-left: 42%;
+        font-size: 0.78rem;
+    }
+
+    .app-list-table tbody td:before {
+        width: 40%;
+        font-size: 0.6rem;
+    }
+
+    .app-list-table tbody td.list-instance-name {
+        font-size: 0.84rem;
+    }
+
+    .home-section-bar {
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+
+    .home-section-bar-right {
+        width: 100%;
+        justify-content: flex-end;
+    }
+}
+
+/* ── Support / Community link compaction ──────────────────────────── */
+.support-link, .community-link {
+    padding: 5px;
+    min-height: 0;
+}
+
+.support-links-grid .icon-container,
+.community-links-grid .icon-container {
+    aspect-ratio: 1/1;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transform: scale(0.85);
+}
+
+.support-links-grid, .community-links-grid {
+    padding: 4px;
+    gap: 6px;
+}
+
+.link-title {
+    font-size: 0.9em;
+    margin-bottom: 1px;
+}
+
+.link-description {
+    font-size: 0.8em;
+}
+
+/* Compact headers for Support + Resources */
+.community-hub-card .card-header,
+.support-links-card .card-header {
+    padding: 0 0 8px;
+    min-height: 0;
+    height: auto;
+    margin-bottom: 12px;
+    background-color: transparent;
+    border-bottom: 1px solid rgba(90, 109, 137, 0.2);
+}
+
+.community-hub-card .card-header h3,
+.support-links-card .card-header h3 {
+    margin: 0;
+    font-size: 0.75em;
+    line-height: 1.2;
+}
+
+/* Reduce height of both container cards */
+.support-links-card, .community-hub-card {
+    padding: 8px;
+    margin-bottom: 8px;
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 14px;
+}
+
+.support-links-container, .community-resources-container {
+    padding: 2px;
+}
+
+/* Tighten the dashboard grid */
+.dashboard-grid {
+    gap: 10px;
+}
+
+.support-link .link-details, .community-link .link-details {
+    margin-top: -3px;
+}
+
+/* ── Stats card headers ──────────────────────────────────────────── */
+.stats-card .card-header {
+    padding: 6px 0 8px;
+    min-height: 0;
+    margin-bottom: 12px;
+    background-color: transparent;
+    border-bottom: 1px solid rgba(90, 109, 137, 0.2);
+    align-items: flex-end;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    transform: translateZ(0);
+    will-change: auto;
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+.stats-card .card-header h3 {
+    font-size: 0.94em;
+    line-height: 1.2;
+    color: #f1f5f9;
+    font-weight: 700;
+    backface-visibility: hidden;
+    transform: translateZ(0);
+    text-rendering: geometricPrecision;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    isolation: isolate;
+}
+
+.stats-card .card-header h3 i {
+    color: #f59e0b;
+}
+
+.stats-card .card-header .action-button {
+    padding: 4px 10px;
+    font-size: 0.85em;
+}
+
+/* Reset Stats header button – blue accent */
+#reset-stats,
+.stats-card > .card-header > .cycle-reset-button {
+    background: rgba(99, 102, 241, 0.15);
+    color: #a5b4fc;
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    padding: 6px 14px;
+    border-radius: 8px;
+    font-size: 0.85em;
+    font-weight: 500;
+    box-shadow: none;
+}
+
+#reset-stats:hover,
+.stats-card > .card-header > .cycle-reset-button:hover {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #93c5fd;
+    transform: translateY(-1px);
+}
+
+#reset-stats:active,
+.stats-card > .card-header > .cycle-reset-button:active {
+    transform: translateY(0);
+}
+
+#reset-stats i,
+.stats-card > .card-header > .cycle-reset-button i {
+    color: inherit;
+}
+
+/* ── Section Titles ──────────────────────────────────────────────── */
+.carousel-section {
+    margin-bottom: 30px;
+}
+
+.section-title-container {
+    display: flex;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.section-title {
+    font-size: 1.3em;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: #f1f5f9;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.fire-emoji {
+    font-size: 1.3em;
+}
+
+/* Glow only for Smart Hunt flame, not for Trending chart */
+.smarthunt-flame {
+    filter: drop-shadow(0 0 8px rgba(255, 100, 50, 0.8)) drop-shadow(0 0 16px rgba(255, 150, 50, 0.6));
+}
+
+.movie-emoji, .tv-emoji {
+    font-size: 1.3em;
+}
+
+/* Accent bar under section titles – gold-to-blue fade */
+.trending-bar {
+    height: 2px;
+    width: 100%;
+    background: linear-gradient(to right,
+        rgba(245, 158, 11, 0.7) 0%,
+        rgba(245, 158, 11, 0.4) 30%,
+        rgba(99, 102, 241, 0.3) 60%,
+        transparent 100%
+    );
+    border-radius: 2px;
+    margin-bottom: 16px;
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.2);
+}
+
+/* ── Carousel container + arrows ─────────────────────────────────── */
+.carousel-container {
+    position: relative;
+    padding: 0;
+}
+
+.carousel-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    z-index: 10;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+    width: 38px;
+    height: 38px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.carousel-arrow:hover {
+    background: rgba(245, 158, 11, 0.15);
+    border-color: rgba(245, 158, 11, 0.4);
+    color: #f59e0b;
+    transform: translateY(-50%) scale(1.1);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.carousel-arrow.left {
+    left: -15px;
+}
+
+.carousel-arrow.right {
+    right: -15px;
+}
+
+/* ── Media carousel (horizontal scroll strip) ────────────────────── */
+.media-carousel {
+    display: flex;
+    gap: 20px;
+    overflow-x: auto;
+    scroll-behavior: smooth;
+    padding: 10px 5px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.15) rgba(15, 23, 42, 0.3);
+}
+
+.media-carousel::-webkit-scrollbar { height: 6px; }
+.media-carousel::-webkit-scrollbar-track { background: rgba(15, 23, 42, 0.3); border-radius: 3px; }
+.media-carousel::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.15); border-radius: 3px; }
+.media-carousel::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.25); }
+
+/* ── Search bar ──────────────────────────────────────────────────── */
+.global-search-bar {
+    position: relative;
+    width: 100%;
+}
+
+.global-search-bar input {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    border-radius: 12px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.03);
+    transition: all 0.3s ease;
+    padding: 11px 16px 11px 42px;
+    font-size: 13px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+/* Focus styles enforced by components.css — indigo ring */
+
+.global-search-bar i {
+    position: absolute;
+    left: 16px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: #94a3b8;
+    font-size: 14px;
+    z-index: 1;
+    transition: color 0.3s ease;
+    pointer-events: none;
+}
+
+.global-search-bar:focus-within i {
+    color: #f59e0b;
+}
+
+/* ── Home search results grid ────────────────────────────────────── */
+#home-search-results-view {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 10px 0 20px;
+    box-sizing: border-box;
+}
+
+#home-search-results-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+    gap: 20px;
+    padding: 0;
+    width: 100%;
+    max-width: none;
+    box-sizing: border-box;
+    justify-items: start;
+    overflow: visible;
+}
+
+#home-search-results-grid .media-card {
+    width: 150px;
+}
+
+/* ── Sponsor widgets ─────────────────────────────────────────────── */
+.sponsor-widget .link-description {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    min-height: 30px;
+    text-align: left;
+    opacity: 0.95;
+    margin-top: -2px;
+    padding-top: 0;
+    line-height: 1.2;
+}
+
+.sponsor-widget .sponsor-item {
+    display: flex;
+    align-items: center;
+    text-decoration: none;
+    color: inherit;
+}
+
+.sponsor-widget .sponsor-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    margin-right: 8px;
+    border: 1px solid #ddd;
+}
+
+.sponsor-widget .sponsor-name {
+    font-size: 0.9em;
+    font-weight: 500;
+}
+
+/* Golden ring for sponsor avatars */
+.sponsor-icon {
+    position: relative;
+    border-radius: 50%;
+    padding: 2px;
+    background: linear-gradient(45deg, #ffd700, #ffb700, #ffd700, #fff6a1, #ffd700);
+    box-shadow: 0 0 5px rgba(255, 215, 0, 0.4);
+}
+
+.sponsor-icon a { display: block; width: 100%; height: 100%; }
+
+.sponsor-widget .link-details {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    padding-left: 4px;
+}
+
+.sponsor-widget .link-title {
+    font-weight: 600;
+    margin-bottom: 4px;
+    letter-spacing: 0.3px;
+}
+
+.sponsor-title-link {
+    color: #ffffff;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.sponsor-title-link:hover {
+    color: #e0e0e0;
+    text-decoration: underline;
+}
+
+.full-title {
+    font-size: 14px;
+    font-weight: 600;
+    display: block;
+    margin-bottom: 0;
+    line-height: 1.2;
+}
+
+.sponsor-widget .link-description a {
+    color: #ffb700;
+    text-decoration: none;
+    transition: all 0.2s ease;
+    position: relative;
+    padding-bottom: 1px;
+}
+
+.sponsor-widget .link-description a:hover { color: #ffd700; }
+
+.sponsor-widget .link-description a::after {
+    content: '';
+    position: absolute;
+    width: 0;
+    height: 1px;
+    bottom: 0;
+    left: 0;
+    background-color: #ffd700;
+    transition: width 0.3s ease;
+}
+
+.sponsor-widget .link-description a:hover::after { width: 100%; }
+
+.sponsor-icon a img { transition: transform 0.3s ease; }
+.sponsor-icon a:hover img { transform: scale(1.05); }
+
+/* Sponsor banners moved to sidebar — hidden globally */
+
+/* ── Stats Card (Live Hunts / Swaparr / Prowlarr containers) ───── */
+.stats-card {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 14px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+#swaparrStatusCard,
+#prowlarrStatusCard {
+    background: linear-gradient(145deg, rgba(30, 41, 59, 0.4) 0%, rgba(15, 23, 42, 0.6) 100%);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 14px;
+}
+
+/* ── App Stats Cards (Sonarr, Radarr, etc.) ──────────────────────── */
+.app-stats-card {
+    background: linear-gradient(145deg, #1e293b 0%, #0f172a 100%);
+    border: 1px solid rgba(148, 163, 184, 0.1);
+    border-radius: 12px;
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    overflow: hidden;
+    position: relative;
+}
+
+.app-stats-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 28px rgba(0, 0, 0, 0.3);
+    border-color: rgba(148, 163, 184, 0.18);
+}
+
+/* Colored top accent per app */
+.app-stats-card.sonarr  { border-top: 2px solid rgba(99, 102, 241, 0.5); }
+.app-stats-card.radarr  { border-top: 2px solid rgba(245, 158, 11, 0.5); }
+.app-stats-card.lidarr  { border-top: 2px solid rgba(34, 197, 94, 0.5); }
+.app-stats-card.readarr { border-top: 2px solid rgba(168, 85, 247, 0.5); }
+.app-stats-card.whisparr { border-top: 2px solid rgba(236, 72, 153, 0.5); }
+.app-stats-card.eros    { border-top: 2px solid rgba(236, 72, 153, 0.5); }
+.app-stats-card.swaparr { border-top: 2px solid rgba(99, 102, 241, 0.5); }
+
+.app-stats-card h4 {
+    font-weight: 700;
+    font-size: 0.95rem;
+    color: #f1f5f9;
+    letter-spacing: 0.02em;
+}
+
+/* App icon wrapper — transparent, no visible border/box */
+.app-icon-wrapper {
+    background: transparent;
+    border: none;
+    box-shadow: none;
+}
+
+.app-stats-card a { transition: color 0.2s ease; }
+.app-stats-card a:hover h4 { color: #fbbf24; }
+
+/* ── Stat Numbers ────────────────────────────────────────────────── */
+.app-stats-card .stat-number {
+    font-weight: 800;
+    font-size: 2rem;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #f1f5f9 0%, #94a3b8 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+}
+
+/* Per-app stat number colors */
+.app-stats-card.sonarr .stat-number {
+    background: linear-gradient(135deg, #a5b4fc 0%, #6366f1 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.app-stats-card.radarr .stat-number {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.app-stats-card.lidarr .stat-number {
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.app-stats-card.readarr .stat-number {
+    background: linear-gradient(135deg, #c084fc 0%, #a855f7 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.app-stats-card.whisparr .stat-number,
+.app-stats-card.eros .stat-number {
+    background: linear-gradient(135deg, #f472b6 0%, #ec4899 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+/* Movie Snipe: "found / searched" stat layout */
+.app-stats-card.movie_hunt .stat-number,
+.app-stats-card.tv_hunt .stat-number {
+    background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+.app-stats-card.movie_hunt .stat-found,
+.app-stats-card.tv_hunt .stat-found {
+    background: linear-gradient(135deg, #4ade80 0%, #22c55e 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    text-shadow: 0 0 12px rgba(34, 197, 94, 0.4);
+}
+.stat-number-found-wrap {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 0.15em;
+    font-size: 1.8rem;
+    font-weight: 800;
+    color: rgba(148, 163, 184, 0.5);
+}
+.stat-number-found-wrap .stat-number {
+    font-size: inherit;
+}
+
+/* List view: found ratio */
+.found-ratio {
+    white-space: nowrap;
+    color: rgba(148, 163, 184, 0.7);
+}
+.found-ratio .found-num {
+    color: #4ade80;
+    font-weight: 700;
+    text-shadow: 0 0 8px rgba(34, 197, 94, 0.35);
+}
+
+.app-stats-card .stat-label {
+    color: #64748b;
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+}
+
+/* ── API Progress Bar ────────────────────────────────────────────── */
+.api-progress-bar {
+    background: rgba(15, 23, 42, 0.6);
+    border-radius: 6px;
+    height: 5px;
+    overflow: hidden;
+    border: 1px solid rgba(148, 163, 184, 0.06);
+}
+
+.api-progress-fill {
+    border-radius: 6px;
+    transition: width 0.5s ease;
+}
+
+.app-stats-card.sonarr .api-progress-fill  { background: linear-gradient(90deg, #6366f1, #a5b4fc); box-shadow: 0 0 6px rgba(99, 102, 241, 0.4); }
+.app-stats-card.radarr .api-progress-fill  { background: linear-gradient(90deg, #f59e0b, #fbbf24); box-shadow: 0 0 6px rgba(245, 158, 11, 0.4); }
+.app-stats-card.lidarr .api-progress-fill  { background: linear-gradient(90deg, #22c55e, #4ade80); box-shadow: 0 0 6px rgba(34, 197, 94, 0.4); }
+.app-stats-card.readarr .api-progress-fill { background: linear-gradient(90deg, #a855f7, #c084fc); box-shadow: 0 0 6px rgba(168, 85, 247, 0.4); }
+.app-stats-card.whisparr .api-progress-fill,
+.app-stats-card.eros .api-progress-fill    { background: linear-gradient(90deg, #ec4899, #f472b6); box-shadow: 0 0 6px rgba(236, 72, 153, 0.4); }
+
+.hourly-cap-text {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.7rem;
+    color: #94a3b8;
+    letter-spacing: 0.03em;
+}
+
+.api-progress-text {
+    font-family: 'SF Mono', 'Fira Code', monospace;
+    font-size: 0.65rem;
+    color: #64748b;
+}
+
+/* ── Per-card Reset Buttons ──────────────────────────────────────── */
+.app-stats-card .cycle-reset-button {
+    background: rgba(30, 41, 59, 0.7);
+    border: 1px solid rgba(148, 163, 184, 0.15);
+    color: #94a3b8;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    padding: 6px 14px;
+    transition: all 0.2s ease;
+    box-shadow: none;
+}
+
+.app-stats-card .cycle-reset-button:hover {
+    background: rgba(239, 68, 68, 0.12);
+    border-color: rgba(239, 68, 68, 0.3);
+    color: #f87171;
+    transform: translateY(-1px);
+}
+
+/* ── Cycle Countdown Badges ──────────────────────────────────────── */
+.status-badge {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 6px;
+    letter-spacing: 0.02em;
+}
+
+/* ── Empty State ─────────────────────────────────────────────────── */
+#live-hunts-empty-state {
+    background: rgba(15, 23, 42, 0.3);
+    border-radius: 12px;
+    border: 1px dashed rgba(148, 163, 184, 0.12);
+}
+
+#live-hunts-empty-state .action-button {
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fbbf24;
+    border-radius: 8px;
+    font-weight: 600;
+    transition: all 0.2s ease;
+}
+
+#live-hunts-empty-state .action-button:hover {
+    background: rgba(245, 158, 11, 0.2);
+    border-color: rgba(245, 158, 11, 0.5);
+    transform: translateY(-1px);
+}
+
+/* ── Media Cards (carousel context) ──────────────────────────────── */
+#homeSection .media-card {
+    border-radius: 10px;
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    transition: transform 0.25s ease, box-shadow 0.25s ease, border-color 0.25s ease;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+#homeSection .media-card:hover {
+    border-color: rgba(245, 158, 11, 0.4);
+    box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
+}
+
+#homeSection .media-card-poster { border-radius: 10px; }
+#homeSection .media-card-info { padding: 8px 10px 10px; }
+#homeSection .media-card-title { font-weight: 600; font-size: 12.5px; color: #e2e8f0; }
+#homeSection .media-card-year { color: #64748b; font-size: 11px; }
+
+/* ═══════════════════════════════════════════════════════════════════
+   PROWLARR STATUS CARD
+   ═══════════════════════════════════════════════════════════════════ */
+.prowlarr-stats-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 15px;
+    width: 100%;
+}
+
+.prowlarr-health-indicator {
+    margin-top: 10px;
+    padding: 8px 12px;
+    background-color: rgba(32, 38, 50, 0.6);
+    border-radius: 6px;
+    border-left: 3px solid #6366f1;
+}
+
+.health-status-text {
+    font-size: 0.9em;
+    font-weight: 500;
+    color: #9ca3af;
+}
+
+.prowlarr-main-card {
+    background-color: rgba(32, 38, 50, 0.6);
+    border-radius: 8px;
+    padding: 15px;
+    margin-bottom: 15px;
+    border: 1px solid rgba(90, 109, 137, 0.2);
+}
+
+.prowlarr-header-section {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.prowlarr-info {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+}
+
+.prowlarr-info h4 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1.2em;
+    font-weight: 600;
+}
+
+.prowlarr-subcards {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 15px;
+}
+
+.prowlarr-subcard {
+    background-color: rgba(24, 28, 37, 0.6);
+    border-radius: 8px;
+    border: 1px solid rgba(90, 109, 137, 0.2);
+    overflow: hidden;
+}
+
+.subcard-header {
+    background-color: rgba(64, 70, 84, 0.6);
+    padding: 10px 15px;
+    border-bottom: 1px solid rgba(90, 109, 137, 0.2);
+}
+
+.subcard-header h5 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 0.9em;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.3s ease;
+}
+
+.subcard-header i {
+    font-size: 0.8em;
+    color: var(--accent-color);
+}
+
+.indexers-list { padding: 15px; }
+
+.indexer-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid rgba(90, 109, 137, 0.1);
+}
+
+.indexer-item:last-child { border-bottom: none; }
+
+.indexer-name {
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: all 0.2s ease;
+}
+
+.indexer-name.hoverable { cursor: pointer; position: relative; }
+
+.indexer-name.hoverable:hover,
+.indexer-name.hovered {
+    color: var(--accent-color);
+    text-shadow: 0 0 8px rgba(90, 109, 137, 0.4);
+}
+
+.indexer-name.hoverable::after {
+    content: '';
+    position: absolute;
+    bottom: -2px;
+    left: 0;
+    width: 0;
+    height: 2px;
+    background: var(--accent-color);
+    transition: width 0.2s ease;
+}
+
+.indexer-name.hoverable:hover::after,
+.indexer-name.hovered::after { width: 100%; }
+
+.indexer-status {
+    font-size: 0.8em;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+}
+
+.indexer-status.active   { background-color: rgba(16, 185, 129, 0.2); color: #10b981; }
+.indexer-status.throttled { background-color: rgba(245, 158, 11, 0.2); color: #f59e0b; }
+.indexer-status.failed   { background-color: rgba(239, 68, 68, 0.2); color: #ef4444; }
+
+.loading-text {
+    color: var(--text-secondary);
+    text-align: center;
+    font-style: italic;
+}
+
+.statistics-content {
+    padding: 12px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+/* Prowlarr statistics: keep 2-column grid from .statistics-content (matching 9.2.0) */
+
+.stat-card {
+    background: linear-gradient(135deg, rgba(16, 20, 28, 0.8) 0%, rgba(30, 35, 45, 0.6) 100%);
+    border: 1px solid rgba(90, 109, 137, 0.15);
+    border-radius: 8px;
+    padding: 10px 12px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: all 0.3s ease;
+    height: 60px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+.stat-card:hover {
+    transform: translateY(-2px);
+    border-color: rgba(90, 109, 137, 0.3);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.stat-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 2px;
+    background: var(--accent-color);
+    opacity: 0;
+    transition: opacity 0.3s ease;
+}
+
+.stat-card:hover::before { opacity: 1; }
+
+/* Prowlarr stat-label (inside stat-card, not the app stats one) */
+.stat-card .stat-label {
+    font-size: 0.7em;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    font-weight: 500;
+    line-height: 1;
+}
+
+.prowlarr-statistics-card .stat-card .stat-label {
+    display: block;
+    opacity: 1;
+    visibility: visible;
+}
+
+.stat-value {
+    font-size: 1.3em;
+    font-weight: 700;
+    color: var(--text-primary);
+    line-height: 1;
+}
+
+.prowlarr-statistics-card .stat-value {
+    font-size: 1.3em;
+    line-height: 1;
+    padding: 0;
+    margin: 0;
+}
+
+.stat-value.success { color: #10b981; text-shadow: 0 0 8px rgba(16, 185, 129, 0.3); }
+.stat-value.warning { color: #f59e0b; text-shadow: 0 0 8px rgba(245, 158, 11, 0.3); }
+.stat-value.error   { color: #ef4444; text-shadow: 0 0 8px rgba(239, 68, 68, 0.3); }
+
+/* Prowlarr legend */
+.prowlarr-legend {
+    margin-top: 15px;
+    padding: 12px 15px;
+    background-color: rgba(16, 20, 28, 0.6);
+    border-radius: 6px;
+    border: 1px solid rgba(90, 109, 137, 0.1);
+}
+
+.legend-title {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 8px;
+}
+
+.legend-items { display: flex; flex-wrap: wrap; gap: 15px; }
+.legend-item  { display: flex; align-items: center; gap: 8px; }
+.legend-description { font-size: 0.75em; color: var(--text-secondary); }
+
+/* ── Mobile responsive ───────────────────────────────────────────── */
+@media (max-width: 768px) {
+    .statistics-content {
+        grid-template-columns: 1fr;
+        gap: 8px;
+    }
+
+    .stat-card { padding: 10px; }
+    .stat-value { font-size: 1.2em; }
+
+    .prowlarr-subcards { grid-template-columns: 1fr; }
+
+    .prowlarr-header-section {
+        flex-direction: column;
+        text-align: center;
+        gap: 10px;
+    }
+
+    .prowlarr-legend { display: none; }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SETUP WIZARD — step-by-step configuration guide on Home page
+   ═══════════════════════════════════════════════════════════════════ */
+
+/* Hide sponsor banners during setup wizard (sidebar is also hidden) */
+body.setup-wizard-active .app-banners-row {
+    display: none !important;
+}
+
+/* Instance callout during setup — emphasizes per-instance config (Root Folders, Indexers) */
+.instance-setup-callout {
+    display: flex;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 16px 20px;
+    background: rgba(99, 102, 241, 0.12);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    border-left: 4px solid #6366f1;
+    border-radius: 10px;
+    color: #e2e8f0;
+    font-size: 0.95rem;
+    line-height: 1.6;
+}
+.instance-setup-callout i {
+    font-size: 1.25rem;
+    color: #818cf8;
+    flex-shrink: 0;
+    margin-top: 2px;
+}
+.instance-setup-callout strong { color: #f1f5f9; }
+.instance-selector-label-emphasis {
+    font-weight: 700 !important;
+    color: #e2e8f0 !important;
+    font-size: 15px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* Root folders instance status checklist (setup) — muted, inside bordered box */
+.root-folders-instance-status-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+.root-folders-instance-status-card {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 16px;
+    border-radius: 8px;
+    min-width: 200px;
+    flex: 1 1 200px;
+    max-width: 280px;
+    background: rgba(15, 23, 42, 0.5);
+    border: 1px solid rgba(148, 163, 184, 0.12);
+    transition: border-color 0.2s ease, background 0.2s ease;
+}
+.root-folders-instance-status-card:hover {
+    background: rgba(30, 41, 59, 0.5);
+    border-color: rgba(148, 163, 184, 0.2);
+}
+.root-folders-instance-status-card.instance-complete {
+    border-left: 3px solid rgba(16, 185, 129, 0.5);
+}
+.root-folders-instance-status-card.instance-complete .instance-status-icon {
+    color: rgba(16, 185, 129, 0.85);
+}
+.root-folders-instance-status-card.instance-complete .instance-status-badge {
+    background: rgba(16, 185, 129, 0.2);
+    color: #6ee7b7;
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.root-folders-instance-status-card.instance-not-setup {
+    border-left: 3px solid rgba(180, 150, 80, 0.5);
+}
+.root-folders-instance-status-card.instance-not-setup .instance-status-icon {
+    color: rgba(180, 150, 80, 0.8);
+}
+.root-folders-instance-status-card.instance-not-setup .instance-status-badge {
+    background: rgba(180, 150, 80, 0.12);
+    color: #d4c4a8;
+    font-weight: 600;
+    font-size: 0.7rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+.root-folders-instance-status-card .instance-status-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 1rem;
+}
+.root-folders-instance-status-card .instance-status-body {
+    flex: 1;
+    min-width: 0;
+}
+.root-folders-instance-status-card .instance-status-name {
+    font-weight: 600;
+    color: #e2e8f0;
+    font-size: 0.9rem;
+    margin-bottom: 4px;
+}
+.root-folders-instance-status-card .instance-status-badge {
+    display: inline-block;
+}
+
+.setup-wizard {
+    background: rgba(15, 20, 30, 0.6);
+    border: 1px solid rgba(90, 109, 137, 0.25);
+    border-radius: 14px;
+    overflow: hidden;
+}
+
+.setup-wizard-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 20px 20px 16px;
+    border-bottom: 1px solid rgba(90, 109, 137, 0.15);
+}
+
+.setup-wizard-icon {
+    flex-shrink: 0;
+}
+
+.setup-wizard-title {
+    margin: 0 0 2px;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #e2e8f0;
+}
+
+.setup-wizard-desc {
+    margin: 0;
+    font-size: 0.85rem;
+    color: #94a3b8;
+    line-height: 1.4;
+}
+
+.setup-wizard-skip {
+    margin-left: auto;
+    background: none;
+    border: none;
+    color: #64748b;
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 6px;
+    transition: color 0.2s, background 0.2s;
+    flex-shrink: 0;
+}
+
+.setup-wizard-skip:hover {
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.06);
+}
+
+/* Progress bar */
+.setup-wizard-progress {
+    height: 3px;
+    background: rgba(90, 109, 137, 0.15);
+    position: relative;
+}
+
+.setup-wizard-progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #6366f1, #818cf8);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+}
+
+/* Individual step */
+.setup-wizard-step {
+    border-bottom: 1px solid rgba(90, 109, 137, 0.1);
+}
+
+.setup-wizard-step:last-child {
+    border-bottom: none;
+}
+
+.setup-wizard-step-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    padding: 14px 20px;
+    cursor: pointer;
+    transition: background 0.15s;
+    user-select: none;
+}
+
+.setup-wizard-step-header:hover {
+    background: rgba(255, 255, 255, 0.02);
+}
+
+/* Step indicator circle */
+.setup-wizard-step-indicator {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    background: rgba(90, 109, 137, 0.15);
+    border: 2px solid rgba(90, 109, 137, 0.3);
+    transition: all 0.3s ease;
+}
+
+.setup-wizard-step-indicator .step-number {
+    font-size: 0.8rem;
+    font-weight: 700;
+    color: #94a3b8;
+    transition: color 0.3s;
+}
+
+.setup-wizard-step-indicator .step-check {
+    display: none;
+    color: #fff;
+    font-size: 0.75rem;
+}
+
+/* Current step */
+.setup-wizard-step.current .setup-wizard-step-indicator {
+    background: rgba(99, 102, 241, 0.2);
+    border-color: #6366f1;
+}
+
+.setup-wizard-step.current .setup-wizard-step-indicator .step-number {
+    color: #818cf8;
+}
+
+.setup-wizard-step.current .setup-wizard-step-title {
+    color: #e2e8f0;
+}
+
+/* Completed step */
+.setup-wizard-step.completed .setup-wizard-step-indicator {
+    background: rgba(16, 185, 129, 0.2);
+    border-color: #10b981;
+}
+
+.setup-wizard-step.completed .setup-wizard-step-indicator .step-number {
+    display: none;
+}
+
+.setup-wizard-step.completed .setup-wizard-step-indicator .step-check {
+    display: inline;
+    color: #10b981;
+}
+
+.setup-wizard-step.completed .setup-wizard-step-title {
+    color: #10b981;
+}
+
+/* Step info text */
+.setup-wizard-step-info {
+    flex: 1;
+    min-width: 0;
+}
+
+.setup-wizard-step-title {
+    display: block;
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #cbd5e1;
+    transition: color 0.3s;
+}
+
+.setup-wizard-step-subtitle {
+    display: block;
+    font-size: 0.8rem;
+    color: #64748b;
+    margin-top: 1px;
+}
+
+/* Chevron */
+.setup-wizard-step-chevron {
+    color: #475569;
+    font-size: 0.75rem;
+    transition: transform 0.25s ease, color 0.2s;
+    flex-shrink: 0;
+}
+
+.setup-wizard-step.expanded .setup-wizard-step-chevron {
+    transform: rotate(180deg);
+    color: #94a3b8;
+}
+
+/* Step body (collapsible) */
+.setup-wizard-step-body {
+    display: none;
+    padding: 0 20px 18px 66px;
+    color: #94a3b8;
+    font-size: 0.88rem;
+    line-height: 1.55;
+}
+
+.setup-wizard-step.expanded .setup-wizard-step-body {
+    display: block;
+}
+
+.setup-wizard-step-body p {
+    margin: 0 0 14px;
+}
+
+/* Action button inside wizard steps */
+.setup-wizard-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 18px;
+    background: rgba(99, 102, 241, 0.15);
+    border: 1px solid rgba(99, 102, 241, 0.35);
+    color: #818cf8;
+    border-radius: 8px;
+    font-size: 0.88rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.setup-wizard-action-btn:hover {
+    background: rgba(99, 102, 241, 0.25);
+    border-color: rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px);
+}
+
+.setup-wizard-action-btn i {
+    font-size: 0.85rem;
+}
+
+/* Continue to Setup Guide banner (on Instances page) */
+.setup-wizard-continue-banner {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 12px 16px;
+    background: rgba(99, 102, 241, 0.1);
+    border: 1px solid rgba(99, 102, 241, 0.25);
+    border-radius: 8px;
+    color: #a5b4fc;
+    font-size: 0.9rem;
+}
+
+.setup-wizard-continue-banner i.fa-arrow-right {
+    flex-shrink: 0;
+    opacity: 0.8;
+}
+
+.setup-wizard-continue-btn {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    background: rgba(99, 102, 241, 0.25);
+    border: 1px solid rgba(99, 102, 241, 0.4);
+    color: #c7d2fe;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.setup-wizard-continue-btn:hover {
+    background: rgba(99, 102, 241, 0.35);
+    border-color: rgba(99, 102, 241, 0.5);
+}
+
+/* Return-from-config success banner */
+.setup-wizard-return-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    background: rgba(34, 197, 94, 0.12);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    border-radius: 8px;
+    color: #86efac;
+    font-size: 0.9rem;
+    font-weight: 500;
+}
+
+.setup-wizard-return-banner i {
+    font-size: 1.1rem;
+    flex-shrink: 0;
+}
+
+/* Done with setup area */
+.setup-wizard-done-area {
+    text-align: center;
+    padding: 20px 20px 24px;
+    border-top: 1px solid rgba(148, 163, 184, 0.08);
+}
+.setup-wizard-done-btn {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.15) 0%, rgba(99, 102, 241, 0.08) 100%);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+    color: #a5b4fc;
+    padding: 12px 32px;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+.setup-wizard-done-btn:hover {
+    background: linear-gradient(135deg, rgba(99, 102, 241, 0.25) 0%, rgba(99, 102, 241, 0.15) 100%);
+    border-color: rgba(99, 102, 241, 0.5);
+    color: #c7d2fe;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+.setup-wizard-done-btn i {
+    font-size: 1.05rem;
+}
+.setup-wizard-done-hint {
+    margin: 10px 0 0;
+    font-size: 0.78rem;
+    color: #64748b;
+}
+
+/* Legacy skip button class (keep for JS compatibility) */
+.setup-wizard-skip-btn {
+    background: none;
+    border: 1px solid rgba(100, 116, 139, 0.3);
+    color: #94a3b8;
+    padding: 8px 20px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.setup-wizard-skip-btn:hover {
+    border-color: rgba(100, 116, 139, 0.5);
+    color: #e2e8f0;
+    background: rgba(255, 255, 255, 0.04);
+}
+
+/* Mobile adjustments */
+@media (max-width: 600px) {
+    .setup-wizard-header {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .setup-wizard-step-body {
+        padding-left: 20px;
+    }
+
+    .setup-wizard-step-subtitle {
+        display: none;
+    }
+}

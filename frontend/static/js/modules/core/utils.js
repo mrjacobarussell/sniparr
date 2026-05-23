@@ -1,0 +1,215 @@
+/**
+ * Sniparr - Utility Functions
+ * Shared functions for use across the application
+ */
+
+// ── CSRF token helper ───────────────────────────────────────────────
+// Reads the sniparr_csrf cookie that the server sets on login.
+// The cookie is NOT HttpOnly so JS can read it here.
+function _sniparrCsrfToken() {
+    var match = document.cookie.match(/(?:^|;\s*)sniparr_csrf=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
+}
+
+var _CSRF_METHODS = { POST: 1, PUT: 1, PATCH: 1, DELETE: 1 };
+
+// ── Global fetch interceptor ────────────────────────────────────────
+// 1. Injects X-CSRF-Token on all state-changing requests to same origin.
+// 2. Redirects to login on any 401 from an internal API call.
+(function() {
+    if (window._sniparrFetchPatched) return;
+    window._sniparrFetchPatched = true;
+    var _origFetch = window.fetch;
+    window.fetch = function(url, opts) {
+        if (window._sniparrRedirectingToLogin) {
+            return new Promise(function() {});
+        }
+
+        // Inject CSRF header for state-changing same-origin requests.
+        var method = ((opts && opts.method) || 'GET').toUpperCase();
+        if (_CSRF_METHODS[method]) {
+            var urlStr = (typeof url === 'string') ? url : (url && url.url) || '';
+            var isSameOrigin = !urlStr.startsWith('http') || urlStr.startsWith(window.location.origin);
+            if (isSameOrigin) {
+                var token = _sniparrCsrfToken();
+                if (token) {
+                    opts = opts ? Object.assign({}, opts) : {};
+                    opts.headers = Object.assign({}, opts.headers, { 'X-CSRF-Token': token });
+                }
+            }
+        }
+
+        return _origFetch.call(this, url, opts).then(function(response) {
+            if (response.status === 401) {
+                var urlStr = (typeof url === 'string') ? url : (url && url.url) || '';
+                var isApi = urlStr.indexOf('/api/') !== -1;
+                var onLogin = window.location.pathname.indexOf('/login') !== -1;
+                var onSetup = window.location.pathname.indexOf('/setup') !== -1;
+                if (isApi && !onLogin && !onSetup && !window._sniparrRedirectingToLogin) {
+                    window._sniparrRedirectingToLogin = true;
+                    window.location.href = (window.SNIPARR_BASE_URL || window.SNIPARR_BASE_URL || '') + '/login';
+                    return new Promise(function() {});
+                }
+            }
+            return response;
+        });
+    };
+})();
+
+const SniparrUtils = {
+    /**
+     * Fetch with timeout (120s). Per-instance API timeouts are in app instances.
+     * @param {string} url - The URL to fetch
+     * @param {Object} options - Fetch options
+     * @returns {Promise} - Fetch promise with timeout handling
+     */
+    fetchWithTimeout: function(url, options = {}) {
+        // API timeout for fetch. Per-instance timeouts are in app instances.
+        const apiTimeout = 120000; // 120 seconds in milliseconds
+        
+        // Create abort controller for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), apiTimeout);
+        
+        // Merge options with signal from AbortController
+        // Only include credentials for internal API calls (not external URLs)
+        const fetchOptions = {
+            ...options,
+            signal: controller.signal
+        };
+        
+        // Add credentials only for internal API calls
+        if (url && typeof url === 'string' && !url.startsWith('http') && !url.startsWith('//')) {
+            fetchOptions.credentials = 'include';
+        }
+        
+        // Process URL to handle base URL for reverse proxy subpaths
+        // Always use absolute same-origin URL to avoid "Failed to fetch" on localhost/venv
+        let processedUrl = url;
+        
+        // Only process internal API requests (not external URLs)
+        if (url && typeof url === 'string' && !url.startsWith('http') && !url.startsWith('//')) {
+            const baseUrl = window.SNIPARR_BASE_URL || '';
+            let pathPart;
+            if (baseUrl && !url.startsWith(baseUrl)) {
+                let cleanPath = url.replace(/^\.\//, '');
+                pathPart = cleanPath.startsWith('/') ? cleanPath : '/' + cleanPath;
+                pathPart = baseUrl + pathPart;
+            } else {
+                pathPart = url;
+            }
+            // Build absolute URL using current origin (fixes localhost fetch failures)
+            processedUrl = (typeof window !== 'undefined' && window.location && window.location.origin)
+                ? (window.location.origin + (pathPart.startsWith('/') ? pathPart : '/' + pathPart))
+                : pathPart;
+        }
+        
+        return fetch(processedUrl, fetchOptions)
+            .then(response => {
+                clearTimeout(timeoutId);
+                return response;
+            })
+            .catch(error => {
+                clearTimeout(timeoutId);
+                // Customize the error if it was a timeout
+                if (error.name === 'AbortError') {
+                    throw new Error(`Request timeout after ${apiTimeout / 1000} seconds`);
+                }
+                throw error;
+            });
+    },
+    
+    /**
+     * API timeout in seconds for internal fetches. Per-instance timeouts are in app instances.
+     * @returns {number} - API timeout in seconds
+     */
+    getApiTimeout: function() {
+        return 120;
+    },
+
+    /**
+     * Format date nicely for display
+     * @param {Date|string} date - The date to format
+     * @returns {string} - Formatted date string
+     */
+    formatDate: function (date) {
+        if (!date) return "Never";
+        
+        const dateObj = typeof date === 'string' ? new Date(date) : date;
+        if (isNaN(dateObj.getTime())) return "Invalid Date";
+
+        const options = {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: true,
+        };
+
+        return dateObj.toLocaleString("en-US", options);
+    },
+
+    /**
+     * Convert seconds to readable format (e.g., "1 hour, 30 minutes")
+     * @param {number} seconds - Total seconds
+     * @returns {string} - Readable duration string
+     */
+    convertSecondsToReadable: function (seconds) {
+        if (!seconds || seconds <= 0) return "0 seconds";
+
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const remainingSeconds = seconds % 60;
+
+        const parts = [];
+        if (hours > 0) parts.push(`${hours} hour${hours > 1 ? "s" : ""}`);
+        if (minutes > 0) parts.push(`${minutes} minute${minutes > 1 ? "s" : ""}`);
+        if (remainingSeconds > 0 && hours === 0)
+            parts.push(
+                `${remainingSeconds} second${remainingSeconds > 1 ? "s" : ""}`
+            );
+
+        return parts.join(", ") || "0 seconds";
+    },
+
+    /**
+     * Get a UI preference from the server-side general settings.
+     * Uses sniparrUI.originalSettings.general as the source.
+     */
+    getUIPreference: function(key, defaultValue) {
+        if (!window.sniparrUI || !window.sniparrUI.originalSettings || !window.sniparrUI.originalSettings.general) {
+            return defaultValue;
+        }
+        const prefs = window.sniparrUI.originalSettings.general.ui_preferences || {};
+        const value = prefs[key];
+        return (value !== undefined) ? value : defaultValue;
+    },
+
+    /**
+     * Set a UI preference in the server-side general settings.
+     * Merges with existing preferences and auto-saves.
+     */
+    setUIPreference: function(key, value) {
+        if (!window.sniparrUI || !window.sniparrUI.originalSettings || !window.sniparrUI.originalSettings.general) {
+            console.warn('[SniparrUtils] Cannot set UI preference: sniparrUI.originalSettings not ready');
+            return;
+        }
+        
+        const prefs = window.sniparrUI.originalSettings.general.ui_preferences || {};
+        prefs[key] = value;
+        window.sniparrUI.originalSettings.general.ui_preferences = prefs;
+        
+        // Use FetchWithTimeout to save just the preferences (server merges them)
+        this.fetchWithTimeout('./api/settings/general', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ui_preferences: prefs })
+        }).catch(err => console.error('[SniparrUtils] Failed to save UI preference:', err));
+    }
+};
+
+// If running in Node.js environment
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = SniparrUtils;
+}

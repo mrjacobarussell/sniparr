@@ -1,0 +1,167 @@
+<section id="userSection" class="content-section">
+    <div class="app-content-panel" style="padding: 20px;">
+        {% from 'components/page_header_partial.html' import page_header %}
+        {{ page_header(back_href='./#settings', parent_icon='fas fa-user-cog', parent_name='Settings', current_name='Account', sponsor_section_id='user') }}
+        <div class="uset-container">
+
+        <!-- Card grid — top row: 3 columns, bottom row: 2 columns -->
+        <div class="uset-grid">
+
+            <!-- Change Username card -->
+            <div class="mset-card">
+                <div class="mset-card-header">
+                    <div class="mset-card-icon mset-icon-blue"><i class="fas fa-user-edit"></i></div>
+                    <h3>Change Username</h3>
+                </div>
+                <div class="mset-card-body">
+                    <div class="form-group">
+                        <label for="currentUsername">Current Username:</label>
+                        <span id="currentUsername" class="current-value">Loading...</span>
+                    </div>
+                    <div class="form-group">
+                        <label for="newUsername">New Username:</label>
+                        <input type="text" id="newUsername" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="currentPasswordForUsernameChange">Current Password:</label>
+                        <input type="password" id="currentPasswordForUsernameChange" class="form-control" required>
+                    </div>
+                    <div class="form-actions">
+                        <button id="saveUsername" class="action-button primary-button">Save Username</button>
+                    </div>
+                    <div id="usernameStatus" class="status-message" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Change Password card -->
+            <div class="mset-card">
+                <div class="mset-card-header">
+                    <div class="mset-card-icon mset-icon-amber"><i class="fas fa-key"></i></div>
+                    <h3>Change Password</h3>
+                </div>
+                <div class="mset-card-body">
+                    <div class="form-group">
+                        <label for="currentPassword">Current Password:</label>
+                        <input type="password" id="currentPassword" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="newPassword">New Password:</label>
+                        <input type="password" id="newPassword" class="form-control">
+                    </div>
+                    <div class="form-group">
+                        <label for="confirmPassword">Confirm Password:</label>
+                        <input type="password" id="confirmPassword" class="form-control">
+                    </div>
+                    <div class="form-actions">
+                        <button id="savePassword" class="action-button primary-button">Save Password</button>
+                    </div>
+                    <div id="passwordStatus" class="status-message" style="display: none;"></div>
+                </div>
+            </div>
+
+            <!-- Two-Factor Authentication card -->
+            <div class="mset-card">
+                <div class="mset-card-header">
+                    <div class="mset-card-icon mset-icon-purple"><i class="fas fa-shield-alt"></i></div>
+                    <h3>Two-Factor Authentication</h3>
+                </div>
+                <div class="mset-card-body">
+                    <div class="form-group">
+                        <label>Status:</label>
+                        <span id="twoFactorEnabled" class="status-badge" style="display: none;">Loading...</span>
+                    </div>
+
+                    <div id="enableTwoFactorSection" style="display: none;">
+                        <div class="form-actions">
+                            <button id="enableTwoFactor" class="action-button primary-button">Enable 2FA</button>
+                        </div>
+                    </div>
+
+                    <div id="setupTwoFactorSection" style="display: none;">
+                        <div class="qr-container">
+                            <div class="qr-code">
+                                <img id="qrCode" src="" alt="QR Code">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label for="secretKey">Secret Key:</label>
+                            <div class="secret-key-container">
+                                <div id="secretKey" class="secret-key"></div>
+                                <button class="copy-button">Copy</button>
+                            </div>
+                            <p class="help-text">Use this key if you can't scan the QR code</p>
+                        </div>
+                        <div class="form-group">
+                            <label for="verificationCode">Verification Code:</label>
+                            <input type="text" id="verificationCode" class="form-control" placeholder="000000" maxlength="6">
+                        </div>
+                        <div class="form-actions">
+                            <button id="verifyTwoFactor" class="action-button primary-button">Verify and Enable</button>
+                        </div>
+                        <div id="verifyStatus" class="status-message" style="display: none;"></div>
+                    </div>
+
+                    <div id="disableTwoFactorSection" style="display: none;">
+                        <div class="form-group">
+                            <label for="currentPasswordFor2FADisable">Current Password:</label>
+                            <input type="password" id="currentPasswordFor2FADisable" class="form-control" placeholder="Enter your password" required>
+                        </div>
+                        <div class="form-group">
+                            <label for="otpCodeFor2FADisable">Current OTP Code:</label>
+                            <input type="text" id="otpCodeFor2FADisable" class="form-control" placeholder="000000" maxlength="6" required>
+                        </div>
+                        <div class="form-actions">
+                            <button id="disableTwoFactor" class="action-button danger-button">Disable 2FA</button>
+                        </div>
+                        <div id="disableStatus" class="status-message" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recovery Key card -->
+            <div class="mset-card">
+                <div class="mset-card-header">
+                    <div class="mset-card-icon mset-icon-teal"><i class="fas fa-life-ring"></i></div>
+                    <h3>Recovery Key</h3>
+                </div>
+                <div class="mset-card-body">
+                    <div class="form-group">
+                        <label>Account Recovery:</label>
+                        <p class="help-text">Generate a recovery key to reset your password if you get locked out. Keep it safe!</p>
+                    </div>
+                    <div class="form-group">
+                        <label for="currentPasswordForRecovery">Current Password:</label>
+                        <input type="password" id="currentPasswordForRecovery" class="form-control" placeholder="Enter your current password" required>
+                    </div>
+                    <div id="recoveryTwoFactorSection" style="display: none;">
+                        <div class="form-group">
+                            <label for="recoveryTwoFactorCode">2FA Code:</label>
+                            <input type="text" id="recoveryTwoFactorCode" class="form-control" placeholder="000000" maxlength="6">
+                        </div>
+                    </div>
+                    <div class="form-actions">
+                        <button id="generateRecoveryKey" class="action-button primary-button">
+                            <i class="fas fa-key"></i> Generate Recovery Key
+                        </button>
+                    </div>
+                    <div id="recoveryKeyDisplay" style="display: none; margin-top: 15px;">
+                        <div class="form-group">
+                            <label>Your Recovery Key:</label>
+                            <div class="recovery-key-container">
+                                <div id="recoveryKeyValue" class="recovery-key-value"></div>
+                                <button id="copyRecoveryKey" class="copy-button">Copy</button>
+                            </div>
+                            <p class="help-text" style="color: #ff9966; font-weight: 600;">
+                                <i class="fas fa-exclamation-triangle"></i> Save this key securely! It will only be shown once.
+                            </p>
+                        </div>
+                    </div>
+                    <div id="recoveryStatus" class="status-message" style="display: none;"></div>
+                </div>
+            </div>
+
+        </div>
+        </div>
+    </div>
+</section>
+

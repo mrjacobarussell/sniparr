@@ -1,0 +1,932 @@
+/* ==========================================================================
+   Sniparr Settings & Form Styles
+   ========================================================================== */
+
+/* ============================================================
+   Main Settings — Modern Layout (.mset-* prefix)
+   ============================================================ */
+
+/* Toolbar */
+.mset-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 28px;
+    padding: 14px 20px;
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(148, 163, 184, 0.08);
+    border-radius: 14px;
+    gap: 16px;
+}
+
+.mset-toolbar-left {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    min-width: 0;
+}
+
+.mset-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.mset-breadcrumb {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 0.9rem;
+    color: #64748b;
+    min-width: 0;
+}
+
+.mset-breadcrumb i:first-child {
+    font-size: 0.95rem;
+    opacity: 0.7;
+    color: #94a3b8;
+}
+
+.mset-breadcrumb span:last-child {
+    color: #e2e8f0;
+    font-weight: 500;
+}
+
+.mset-breadcrumb-sep {
+    font-size: 0.6rem;
+    color: #475569;
+}
+
+/* Save button */
+.mset-save-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 9px 18px;
+    border-radius: 10px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    white-space: nowrap;
+    line-height: 1.2;
+    background: rgba(71, 85, 105, 0.35);
+    color: rgba(255, 255, 255, 0.3);
+    border: 1px solid rgba(148, 163, 184, 0.06);
+}
+
+.mset-save-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+.mset-save-btn.mset-save-active {
+    background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%) !important;
+    color: #fff !important;
+    cursor: pointer !important;
+    opacity: 1 !important;
+    border: none !important;
+    box-shadow: 0 4px 16px rgba(99, 102, 241, 0.35), 0 1px 3px rgba(0, 0, 0, 0.1) !important;
+}
+
+.mset-save-btn.mset-save-active:hover {
+    background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%) !important;
+    transform: translateY(-1px) !important;
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.45), 0 2px 6px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Two-column grid */
+.mset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+    gap: 22px;
+    padding: 0;
+    width: 100%;
+    align-items: start;
+}
+
+/* Cards */
+.mset-card {
+    background: rgba(30, 41, 59, 0.32);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(148, 163, 184, 0.07);
+    border-radius: 16px;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    overflow: hidden;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+    position: relative;
+}
+
+.mset-card:hover {
+    border-color: rgba(148, 163, 184, 0.14);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+}
+
+.mset-card-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.07);
+    gap: 12px;
+}
+
+.mset-card-header h3 {
+    margin: 0;
+    padding: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #94a3b8;
+    text-transform: uppercase;
+    letter-spacing: 0.12em;
+    border: none;
+    background: none;
+    box-shadow: none;
+    text-shadow: none;
+    border-radius: 0;
+    border-left: none;
+    border-bottom: none;
+}
+
+.mset-card-icon {
+    width: 28px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    color: #fff;
+    flex-shrink: 0;
+}
+
+.mset-icon-blue   { background: rgba(99, 102, 241, 0.12); color: #818cf8; }
+.mset-icon-amber  { background: rgba(245, 158, 11, 0.12); color: #fbbf24; }
+.mset-icon-purple { background: rgba(139, 92, 246, 0.12); color: #a78bfa; }
+.mset-icon-teal   { background: rgba(20, 184, 166, 0.12); color: #2dd4bf; }
+
+.mset-card-body {
+    padding: 26px 28px;
+}
+
+/* Form items grid alignment for toggles */
+.mset-card-body .setting-item {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 8px;
+    margin-bottom: 22px;
+    width: 100%;
+    text-align: left !important;
+}
+
+.mset-card-body .setting-item.flex-row {
+    display: grid !important;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center !important;
+    column-gap: 16px !important;
+    width: 100%;
+}
+
+.mset-card-body .setting-item label {
+    color: #e2e8f0;
+    font-weight: 500;
+    font-size: 0.9rem;
+    margin: 0 !important;
+    width: auto !important;
+    display: block !important;
+    text-align: left !important;
+    letter-spacing: 0.01em;
+}
+
+/* Indigo toggles in settings */
+#settingsSection input:checked + .toggle-slider {
+    background: #6366f1 !important;
+    border-color: rgba(99, 102, 241, 0.5) !important;
+}
+
+.mset-card-body .setting-item .toggle-switch {
+    flex: 0 0 44px !important;
+    margin: 0 !important;
+    justify-self: end;
+}
+
+.mset-card-body .setting-item:last-child {
+    margin-bottom: 0;
+}
+
+.mset-card-body .setting-help {
+    color: #64748b;
+    font-size: 0.82rem;
+    margin: 2px 0 0 0 !important;
+    padding-left: 1px;
+    line-height: 1.5;
+    text-align: left !important;
+    width: 100%;
+    opacity: 1;
+}
+
+/* Selects and inputs — visual properties enforced by components.css.
+   Only layout, font, and spacing kept here. */
+.mset-select, .mset-input {
+    width: 100%;
+    max-width: 100% !important;
+    padding: 11px 14px;
+    font-size: 0.925rem;
+    transition: all 0.2s ease;
+    margin: 0 !important;
+    line-height: 1.4;
+}
+
+.mset-select {
+    cursor: pointer;
+    padding-right: 38px;
+}
+
+@media (max-width: 768px) {
+    .mset-toolbar {
+        flex-direction: row !important;
+        justify-content: space-between !important;
+        gap: 12px;
+        padding: 12px 14px;
+        border-radius: 12px;
+    }
+
+    .mset-toolbar-left {
+        width: auto !important;
+    }
+
+    .mset-breadcrumb span:not(:last-child), 
+    .mset-breadcrumb .mset-breadcrumb-sep {
+        display: none !important;
+    }
+
+    .mset-card-body {
+        padding: 20px 18px;
+    }
+}
+
+/* ---- Log Storage Stats & Actions ---- */
+.logset-stats {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 16px;
+}
+
+.logset-stat-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 12px;
+    background: rgba(15, 23, 42, 0.4);
+    border-radius: 8px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.logset-stat-label {
+    color: var(--text-muted, #94a3b8);
+    font-size: 13px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.logset-stat-label i {
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.logset-stat-value {
+    color: var(--text-primary, #e2e8f0);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.logset-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.logset-action-btn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: 8px;
+    border: none;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    color: #fff;
+}
+
+.logset-action-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.logset-btn-amber {
+    background: linear-gradient(135deg, #f59e0b, #fbbf24);
+    color: #1a1a2e;
+}
+
+.logset-btn-amber:hover:not(:disabled) {
+    box-shadow: 0 3px 12px rgba(245, 158, 11, 0.35);
+}
+
+.logset-btn-red {
+    background: linear-gradient(135deg, #dc2626, #ef4444);
+}
+
+.logset-btn-red:hover:not(:disabled) {
+    box-shadow: 0 3px 12px rgba(220, 38, 38, 0.35);
+}
+
+/* ============================================================
+   End Main Settings Modern Layout
+   ============================================================ */
+
+/* Settings Section */
+.settings-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.save-button, .reset-button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: var(--radius-sm);
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    transition: background-color 0.3s;
+}
+
+.save-button {
+    background-color: var(--button-success-bg);
+    color: white;
+}
+
+.save-button:hover {
+    background-color: var(--button-success-hover);
+}
+
+.reset-button {
+    background-color: var(--button-danger-bg);
+    color: white;
+}
+
+.reset-button:hover {
+    background-color: var(--button-danger-hover);
+}
+
+.settings-form {
+    padding: 0;
+}
+
+.app-settings-panel {
+    display: none;
+}
+
+.app-settings-panel.active {
+    display: block;
+}
+
+/* Settings Groups — glass surface */
+.settings-group {
+    background: var(--glass-bg, rgba(17, 24, 39, 0.65));
+    backdrop-filter: blur(var(--glass-blur, 12px));
+    -webkit-backdrop-filter: blur(var(--glass-blur, 12px));
+    border: 1px solid var(--glass-border, rgba(99, 102, 241, 0.08));
+    border-radius: 12px;
+    padding: 24px;
+    margin-bottom: 20px;
+    position: relative;
+}
+
+.settings-group h3 {
+    margin: 0 0 18px 0;
+    padding: 0 0 12px 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: #f1f5f9;
+    border-bottom: 1px solid rgba(148, 163, 184, 0.12);
+    letter-spacing: 0.3px;
+    background: none;
+    box-shadow: none;
+    text-shadow: none;
+    border-radius: 0;
+    border-left: none;
+}
+
+.settings-group h3::after {
+    display: none;
+}
+
+/* Setting Items */
+.setting-item {
+    margin-bottom: 25px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    position: relative;
+    padding-bottom: 5px;
+}
+
+.setting-item:not(:last-child)::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    height: 1px;
+    background: linear-gradient(to right, rgba(90, 109, 137, 0), rgba(90, 109, 137, 0.1), rgba(90, 109, 137, 0));
+}
+
+.setting-item label {
+    width: 200px;
+    font-weight: 600;
+    margin-right: 20px;
+    color: var(--text-primary);
+    letter-spacing: 0.3px;
+    display: flex;
+    align-items: flex-start;
+    font-size: 0.9rem;
+    line-height: 1.3;
+}
+
+.setting-item label .info-icon {
+    margin-right: 8px;
+    color: rgba(99, 102, 241, 0.8);
+    transition: color 0.2s ease, transform 0.2s ease;
+    flex-shrink: 0;
+    margin-top: 1px;
+}
+
+.setting-item label .info-icon:hover {
+    color: rgba(99, 102, 241, 1);
+    transform: scale(1.1);
+}
+
+/* Setting inputs & selects — visual properties enforced by components.css.
+   Only layout-specific overrides (width) kept here. */
+.setting-item input[type="text"],
+.setting-item input[type="number"],
+.setting-item input[type="password"] {
+    width: 300px;
+    padding: 12px 15px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+.setting-item input:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.setting-item select {
+    width: 300px;
+    padding: 12px 15px;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+/* Help text */
+.setting-help {
+    width: 100%;
+    margin-top: 8px;
+    margin-left: 220px;
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    opacity: 0.85;
+    line-height: 1.4;
+    position: relative;
+    padding-left: 18px;
+}
+
+/* Toggle switch — base definition is in style.css (single source of truth).
+   Only layout overrides for .setting-item context belong here. */
+
+/* (toggle-slider:before, checked states removed — see style.css) */
+
+/* Instance items */
+.instance-item {
+    background: linear-gradient(145deg, rgba(30, 39, 56, 0.4), rgba(22, 28, 40, 0.5));
+    border: 1px solid rgba(90, 109, 137, 0.1);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    transition: all 0.2s ease;
+}
+
+.instance-item:hover {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    border-color: rgba(90, 109, 137, 0.2);
+}
+
+.instance-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 15px;
+    margin-bottom: 15px;
+    border-bottom: 1px solid rgba(90, 109, 137, 0.1);
+}
+
+.instance-header h4 {
+    margin: 0;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+}
+
+.instance-header h4::before {
+    content: '\f233';
+    font-family: 'Font Awesome 5 Free';
+    font-weight: 900;
+    margin-right: 10px;
+    color: rgba(99, 102, 241, 0.8);
+    font-size: 14px;
+}
+
+/* Enhanced buttons */
+.test-connection-btn,
+.add-instance-btn,
+.remove-instance-btn {
+    padding: 8px 16px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    border: none;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.test-connection-btn {
+    background: linear-gradient(145deg, rgba(41, 128, 185, 0.2), rgba(99, 102, 241, 0.15));
+    color: rgba(99, 102, 241, 0.9);
+    border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+.test-connection-btn:hover {
+    background: linear-gradient(145deg, rgba(41, 128, 185, 0.3), rgba(99, 102, 241, 0.25));
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    color: rgba(99, 102, 241, 1);
+}
+
+.add-instance-btn {
+    background: linear-gradient(145deg, rgba(39, 174, 96, 0.2), rgba(46, 204, 113, 0.15));
+    color: rgba(46, 204, 113, 0.9);
+    border: 1px solid rgba(46, 204, 113, 0.3);
+}
+
+.add-instance-btn:hover {
+    background: linear-gradient(145deg, rgba(39, 174, 96, 0.3), rgba(46, 204, 113, 0.25));
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    color: rgba(46, 204, 113, 1);
+}
+
+.remove-instance-btn {
+    background: linear-gradient(145deg, rgba(231, 76, 60, 0.2), rgba(192, 57, 43, 0.15));
+    color: rgba(231, 76, 60, 0.9);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+}
+
+.remove-instance-btn:hover {
+    background: linear-gradient(145deg, rgba(231, 76, 60, 0.3), rgba(192, 57, 43, 0.25));
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    color: rgba(231, 76, 60, 1);
+}
+
+/* Connection Status Badge */
+.connection-status-badge {
+    padding: 6px 12px !important;
+    border-radius: 20px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 5px !important;
+    margin-left: 12px !important;
+}
+
+.connection-status-badge.status-success {
+    background-color: rgba(39, 174, 96, 0.2) !important;
+    color: #22c55e !important;
+}
+
+.connection-status-badge.status-error {
+    background-color: rgba(231, 76, 60, 0.2) !important;
+    color: #ef4444 !important;
+}
+
+.connection-status-badge.status-unknown {
+    background-color: rgba(127, 140, 141, 0.2) !important;
+    color: #7f8c8d !important;
+}
+
+.connection-status-badge.status-testing {
+    background-color: rgba(99, 102, 241, 0.2) !important;
+    color: #6366f1 !important;
+}
+
+.connection-status-badge i {
+    font-size: 13px !important;
+}
+
+/* Short number inputs */
+.short-number-input,
+.setting-item input.short-number-input {
+    width: 100px !important;
+    padding: 12px 10px !important;
+}
+
+input[type="number"].interval-input,
+#generalSettings .setting-item input#stateful_management_hours {
+    width: 80px !important;
+    padding: 12px 8px !important;
+}
+
+/* Stateful Management Section */
+.stateful-header-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding-bottom: 10px;
+    margin-bottom: 15px;
+    width: 100%;
+}
+
+.stateful-header-row h3 {
+    margin: 0;
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+#reset_stateful_btn {
+    background: linear-gradient(145deg, rgba(231, 76, 60, 0.2), rgba(192, 57, 43, 0.15));
+    color: rgba(231, 76, 60, 0.9);
+    border: 1px solid rgba(231, 76, 60, 0.3);
+    padding: 6px 14px;
+    border-radius: 6px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+#reset_stateful_btn:hover {
+    background: linear-gradient(145deg, rgba(231, 76, 60, 0.3), rgba(192, 57, 43, 0.25));
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    color: rgba(231, 76, 60, 1);
+}
+
+#reset_stateful_btn i {
+    font-size: 13px;
+}
+
+#generalSettings .setting-info-block {
+    background: linear-gradient(145deg, rgba(30, 39, 56, 0.4), rgba(22, 28, 40, 0.5));
+    border: 1px solid rgba(90, 109, 137, 0.1);
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 0;
+    margin-bottom: 20px;
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+#generalSettings .info-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 15px;
+}
+
+#generalSettings .date-info-block {
+    background: linear-gradient(145deg, rgba(20, 25, 35, 0.4), rgba(15, 19, 26, 0.3));
+    padding: 12px 15px;
+    border-radius: 6px;
+    border-left: 3px solid var(--accent-color);
+    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+#generalSettings .date-label {
+    font-size: 0.85em;
+    color: var(--text-secondary);
+    margin-bottom: 5px;
+    opacity: 0.85;
+}
+
+#generalSettings .date-value {
+    font-size: 0.95em;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-family: inherit;
+    background-color: transparent;
+    padding: 0;
+}
+
+#generalSettings .setting-item .reset-help {
+    color: var(--warning-color);
+    font-style: normal;
+    font-size: 0.85em;
+    opacity: 0.9;
+}
+
+#generalSettings .setting-item input#stateful_management_hours,
+input#stateful_management_hours {
+    width: 55px !important;
+    padding: 8px 6px !important;
+    text-align: center;
+    margin-right: 10px;
+    min-width: 55px !important;
+    max-width: 55px !important;
+    font-size: 0.9rem;
+}
+
+/* Swaparr toggle alignment fix */
+.instance-item .setting-item.swaparr-instance-toggle label:not(.toggle-switch) {
+    width: 250px !important;
+    min-width: 250px !important;
+    flex-shrink: 0 !important;
+}
+
+/* Mobile responsive settings */
+@media (max-width: 768px) {
+    .setting-help {
+        margin-left: 0;
+        margin-top: 6px;
+    }
+
+    .settings-group {
+        padding: 15px;
+        text-align: left !important;
+    }
+    
+    .settings-group h3 {
+        text-align: left !important;
+        margin-left: 0;
+        margin-right: 0;
+    }
+    
+    .setting-item {
+        align-items: flex-start !important;
+        justify-content: flex-start !important;
+        text-align: left !important;
+        flex-direction: column !important;
+        width: 100%;
+    }
+    
+    .setting-item label {
+        width: 100%;
+        margin-bottom: 8px;
+        text-align: left !important;
+        display: block !important;
+        justify-content: flex-start !important;
+    }
+    
+    .setting-item .toggle-switch {
+        /* display:block and margin:0 are in style.css; only mobile layout adjustment here */
+        margin-top: 8px;
+    }
+    
+    .setting-item label:not(.toggle-switch) {
+        margin-right: 0 !important;
+    }
+    
+    .setting-item input[type="text"],
+    .setting-item input[type="number"],
+    .setting-item input[type="password"],
+    .setting-item select,
+    .setting-item textarea {
+        width: 100%;
+        max-width: 100%;
+        text-align: left !important;
+        margin-left: 0 !important;
+    }
+    
+    .setting-help {
+        margin-left: 0 !important;
+        text-align: left !important;
+        width: 100%;
+    }
+    
+    .toggle-container {
+        justify-content: flex-start !important;
+        margin-left: 0 !important;
+    }
+    /* .toggle-switch margin/display handled globally in style.css */
+    
+    #userSettingsContainer .settings-group,
+    #settingsContent .settings-group {
+        text-align: left !important;
+    }
+    
+    #userSettingsContainer .setting-item,
+    #settingsContent .setting-item {
+        text-align: left !important;
+        align-items: flex-start !important;
+        justify-content: flex-start !important;
+    }
+
+    .setting-item input[type="text"],
+    .setting-item input[type="number"],
+    .setting-item input[type="password"] {
+        width: 100%;
+        max-width: 300px;
+    }
+
+    .setting-item input.short-number-input {
+        width: 80px;
+        max-width: 80px;
+    }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Settings sub-pages — Use global content boundary (Import Media width)
+   ═══════════════════════════════════════════════════════════════════ */
+#media-snipe-settings-default-section .app-content-panel,
+#movieManagementSection .app-content-panel,
+#mediaHuntProfilesSection .app-content-panel,
+#settingsSizesSection .app-content-panel,
+#settingsCustomFormatsSection .app-content-panel,
+#settingsIndexersSection .app-content-panel,
+#settingsClientsSection .app-content-panel,
+#settingsImportListsSection .app-content-panel,
+#settingsImportMediaSection .app-content-panel,
+#settingsRootFoldersSection .app-content-panel,
+#settingsLogsSection .app-content-panel {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Settings Section — Banner & Panel (extracted from settings_section.html)
+   ═══════════════════════════════════════════════════════════════════ */
+
+.fixed-banner-footer {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    text-align: center;
+    padding: 10px 20px;
+    background-color: var(--bg-secondary);
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+    border-top: 1px solid var(--border-color);
+    z-index: 1000;
+}
+
+.app-settings-panel {
+    padding-bottom: 50px;
+}
+
+.fixed-banner-footer p {
+    margin: 0;
+    font-size: 1em;
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.fixed-banner-footer a {
+    color: var(--accent-color);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.2s, text-decoration 0.2s;
+}
+
+.fixed-banner-footer a:hover {
+    text-decoration: underline;
+    color: var(--accent-hover);
+}
+
+.fixed-banner-footer .donation-icon {
+    color: var(--error-color, #ff6b6b);
+}
+
+.fixed-banner-footer .star-icon {
+    color: var(--warning-color, #ffd700);
+}

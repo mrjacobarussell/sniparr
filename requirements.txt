@@ -1,0 +1,23 @@
+Flask==3.1.3        # CVE-2026-27205: bump from 3.1.2
+cryptography>=42.0.0  # Fernet symmetric encryption for api_key storage
+itsdangerous>=2.2.0   # Signed session tokens (CSRF + session security)
+requests==2.33.0    # CVE-2026-25645: bump from 2.32.5
+waitress==3.0.2
+bcrypt==4.1.2
+qrcode[pil]==7.4.2 # Added qrcode with PIL support
+pyotp==2.9.0       # Added pyotp
+pytz==2025.2       # Timezone support (bumped from 2023.3 — stale tz data)
+pywin32==308; sys_platform == 'win32' # For Windows service support
+sabyenc3>=5.4.4    # Hardware-accelerated yEnc decoder (used by SABnzbd)
+apprise==1.6.0     # Added for notification support
+markdown==3.8.1    # CVE-2025-69534: bump from 3.4.3
+pyyaml==6.0.2      # Required by apprise (bumped from 6.0.1 — indirect libyaml CVE-2024-35326)
+
+# Transitive dependency CVE pins — these override versions pulled by direct deps
+Werkzeug>=3.1.5    # CVE-2026-21860: safe_join Windows device name bypass
+Jinja2>=3.1.6      # CVE-2025-27516, CVE-2024-56326, CVE-2024-56201: sandbox escapes
+urllib3>=2.6.0     # CVE-2025-66418, CVE-2025-66471: unbounded decompression DoS
+idna>=3.7          # CVE-2024-3651: encode() quadratic DoS
+Pillow>=10.3.0     # CVE-2024-28219: buffer overflow in _imagingcms.c
+
+pystray==0.19.5; sys_platform == 'win32' # Windows system tray icon

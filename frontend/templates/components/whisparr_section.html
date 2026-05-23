@@ -1,0 +1,35 @@
+<section id="whisparrSection" class="content-section">
+    <link rel="stylesheet" href="./static/css/instance-editor.css?v=1.0.2">
+    <div class="content-boundary-inner">
+        {% from 'components/page_header_partial.html' import page_header %}
+        {{ page_header(back_href='./#apps', parent_icon='fas fa-th-large', parent_name='Apps', current_name='Whisparr V2', sponsor_section_id='whisparr') }}
+        <div id="whisparrApps" class="app-content-panel"></div>
+    </div>
+</section>
+
+<style>
+    /* Whisparr Section - Full Page Layout */
+    #whisparrSection {
+        display: none;
+        width: 100%;
+        height: 100vh;
+        overflow-y: auto;
+        overflow-x: hidden;
+        padding: 0 20px 20px 20px;
+        margin: 0;
+    }
+    
+    #whisparrSection.active {
+        display: block;
+    }
+    
+    /* App content panel - natural height */
+    #whisparrApps {
+        width: 100%;
+        padding: 8px 0 20px 0;
+        margin: 0;
+        background-color: transparent;
+        box-shadow: none;
+        border: none;
+    }
+</style>

@@ -1,0 +1,199 @@
+#!/usr/bin/env python3
+"""
+Quality Upgrade Processing for Whisparr
+Handles searching for items that need quality upgrades in Whisparr
+
+Supports both v2 (legacy) and v3 (Eros) API versions
+"""
+
+import time
+import random
+from typing import Dict, Any, List, Callable
+from datetime import datetime, timedelta
+from src.primary.utils.logger import get_logger
+from src.primary.apps.whisparr import api as whisparr_api
+from src.primary.settings_manager import load_settings, get_advanced_setting
+from src.primary.stateful_manager import add_processed_id
+from src.primary.stats_manager import increment_stat
+from src.primary.utils.history_utils import log_processed_media
+from src.primary.state import check_state_reset
+from src.primary.apps._common.settings import extract_app_settings, validate_settings
+from src.primary.apps._common.filtering import filter_unprocessed
+from src.primary.apps._common.processing import should_continue_processing
+from src.primary.apps._common.tagging import try_tag_item, extract_tag_settings
+
+# Get logger for the app
+whisparr_logger = get_logger("whisparr")
+
+def process_cutoff_upgrades(
+    app_settings: Dict[str, Any],
+    stop_check: Callable[[], bool] # Function to check if stop is requested
+) -> bool:
+    """
+    Process quality cutoff upgrades for Whisparr based on settings.
+    
+    Args:
+        app_settings: Dictionary containing all settings for Whisparr
+        stop_check: A function that returns True if the process should stop
+        
+    Returns:
+        True if any items were processed for upgrades, False otherwise.
+    """
+    whisparr_logger.info("Starting quality cutoff upgrades processing cycle for Whisparr.")
+    processed_any = False
+    
+    # Reset state files if enough time has passed
+    check_state_reset("whisparr")
+    
+    # Extract common settings using shared utility
+    # Whisparr uses hunt_upgrade_items with fallback to hunt_upgrade_scenes
+    hunt_key_value = app_settings.get("hunt_upgrade_items", app_settings.get("hunt_upgrade_scenes", 0))
+    app_settings["hunt_upgrade_items"] = hunt_key_value  # Normalize for extract
+    s = extract_app_settings(app_settings, "whisparr", "hunt_upgrade_items", "Whisparr Default")
+    instance_name = s['instance_name']
+    instance_key = s['instance_key']
+    api_url = s['api_url']
+    api_key = s['api_key']
+    api_timeout = s['api_timeout']
+    monitored_only = s['monitored_only']
+    hunt_upgrade_items = s['hunt_count']
+    tag_settings = extract_tag_settings(app_settings)
+    
+    whisparr_logger.debug(f"Using Whisparr V2 API for instance: {instance_name}")
+
+    if not validate_settings(api_url, api_key, hunt_upgrade_items, "whisparr", whisparr_logger):
+        return False
+
+    # Check for stop signal
+    if stop_check():
+        whisparr_logger.info("Stop requested before starting quality upgrades. Aborting...")
+        return False
+
+    # Get items eligible for upgrade
+    whisparr_logger.info(f"Retrieving items eligible for cutoff upgrade...")
+    upgrade_eligible_data = whisparr_api.get_cutoff_unmet_items(api_url, api_key, api_timeout, monitored_only)
+    
+    if not upgrade_eligible_data:
+        whisparr_logger.info("No items found eligible for upgrade or error retrieving them.")
+        return False
+    
+    # Check for stop signal after retrieving eligible items
+    if stop_check():
+        whisparr_logger.info("Stop requested after retrieving upgrade eligible items. Aborting...")
+        return False
+        
+    whisparr_logger.info(f"Found {len(upgrade_eligible_data)} items eligible for quality upgrade.")
+
+    # Filter out items whose series has an exempt tag (issue #676)
+    exempt_tags = app_settings.get("exempt_tags") or []
+    if exempt_tags:
+        exempt_id_to_label = whisparr_api.get_exempt_tag_ids(api_url, api_key, api_timeout, exempt_tags)
+        if exempt_id_to_label:
+            all_series = whisparr_api.get_series(api_url, api_key, api_timeout)
+            exempt_series_ids = set()
+            if all_series:
+                if not isinstance(all_series, list):
+                    all_series = [all_series]
+                for s in all_series:
+                    for tid in (s.get("tags") or []):
+                        if tid in exempt_id_to_label:
+                            exempt_series_ids.add(s.get("id"))
+                            whisparr_logger.info(
+                                f"Skipping series \"{s.get('title', 'Unknown')}\" (ID: {s.get('id')}) - has exempt tag \"{exempt_id_to_label[tid]}\""
+                            )
+                            break
+            upgrade_eligible_data = [item for item in upgrade_eligible_data if item.get("seriesId") not in exempt_series_ids]
+            whisparr_logger.info(f"Exempt tags filter: {len(upgrade_eligible_data)} items remaining for upgrades after excluding series with exempt tags.")
+
+    # Filter out already processed items using shared utility
+    unprocessed_items = filter_unprocessed(
+        upgrade_eligible_data, "whisparr", instance_key,
+        get_id_fn=lambda item: item.get("id"), logger=whisparr_logger
+    )
+    whisparr_logger.info(f"Found {len(unprocessed_items)} unprocessed items out of {len(upgrade_eligible_data)} total items eligible for quality upgrade.")
+    
+    if not unprocessed_items:
+        whisparr_logger.info(f"No unprocessed items found for {instance_name}. All available items have been processed.")
+        return False
+    
+    items_processed = 0
+    processing_done = False
+    
+    # Always use random selection for upgrades
+    whisparr_logger.info(f"Randomly selecting up to {hunt_upgrade_items} items for quality upgrade.")
+    items_to_upgrade = random.sample(unprocessed_items, min(len(unprocessed_items), hunt_upgrade_items))
+    
+    whisparr_logger.info(f"Selected {len(items_to_upgrade)} items for quality upgrade.")
+    
+    # Process selected items
+    for item in items_to_upgrade:
+        if not should_continue_processing("whisparr", stop_check, whisparr_logger):
+            break
+            
+        # Re-check limit in case it changed
+        current_limit = app_settings.get("hunt_upgrade_items", app_settings.get("hunt_upgrade_scenes", 1))
+        if items_processed >= current_limit:
+            whisparr_logger.info(f"Reached HUNT_UPGRADE_ITEMS limit ({current_limit}) for this cycle.")
+            break
+        
+        item_id = item.get("id")
+        title = item.get("title", "Unknown Title")
+        season_episode = f"S{item.get('seasonNumber', 0):02d}E{item.get('episodeNumber', 0):02d}"
+        
+        current_quality = item.get("episodeFile", {}).get("quality", {}).get("quality", {}).get("name", "Unknown")
+        
+        whisparr_logger.info(f"Processing item for quality upgrade: \"{title}\" - {season_episode} (Item ID: {item_id})")
+        whisparr_logger.info(f" - Current quality: {current_quality}")
+        
+        # Refresh functionality has been removed as it was identified as a performance bottleneck
+        
+        # Check for stop signal before searching
+        if stop_check():
+            whisparr_logger.info(f"Stop requested before searching for {title}. Aborting...")
+            break
+        
+        # Mark the item as processed BEFORE triggering any searches
+        add_processed_id("whisparr", instance_key, str(item_id))
+        whisparr_logger.debug(f"Added item ID {item_id} to processed list for {instance_name}")
+        
+        # Search for the item
+        whisparr_logger.info(" - Searching for quality upgrade...")
+        search_command_id = whisparr_api.item_search(api_url, api_key, api_timeout, [item_id])
+        if search_command_id:
+            whisparr_logger.info(f"Triggered search command {search_command_id}. Assuming success for now.")
+            
+            # Tag the series if enabled (unified tagging)
+            series_id = item.get('seriesId')
+            if series_id:
+                try_tag_item(tag_settings, "upgraded", whisparr_api.tag_processed_series,
+                             api_url, api_key, api_timeout, series_id,
+                             whisparr_logger, f"series {series_id}")
+            
+            # Log to history so the upgrade appears in the history UI
+            series_title = item.get("series", {}).get("title", "Unknown Series")
+            media_name = f"{series_title} - {season_episode} - {title}"
+            log_processed_media("whisparr", media_name, item_id, instance_key, "upgrade", display_name_for_log=app_settings.get("instance_display_name") or instance_name)
+            whisparr_logger.debug(f"Logged quality upgrade to history for item ID {item_id}")
+            
+            items_processed += 1
+            processing_done = True
+            
+            # Increment the upgraded statistics for Whisparr
+            increment_stat("whisparr", "upgraded", 1, instance_key)
+            whisparr_logger.debug(f"Incremented whisparr upgraded statistics by 1")
+            
+            # Log progress
+            current_limit = app_settings.get("hunt_upgrade_items", app_settings.get("hunt_upgrade_scenes", 1))
+            whisparr_logger.info(f"Processed {items_processed}/{current_limit} items for quality upgrade this cycle.")
+        else:
+            whisparr_logger.warning(f"Failed to trigger search command for item ID {item_id}.")
+            # Do not mark as processed if search couldn't be triggered
+            continue
+    
+    # Log final status
+    if items_processed > 0:
+        whisparr_logger.info(f"Completed processing {items_processed} items for quality upgrade for this cycle.")
+    else:
+        whisparr_logger.info("No new items were processed for quality upgrade in this run.")
+        
+    return processing_done

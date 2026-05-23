@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Logs - Sniparr Docs</title>
+    <link rel="icon" type="image/png" href="../images/sniparr-logo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+
+<!-- Mobile Topbar -->
+<div class="docs-mobile-topbar">
+    <button class="mob-hamburger" aria-label="Open navigation"><span></span><span></span><span></span></button>
+    <img src="../images/sniparr-logo.png" alt="Sniparr" class="mob-logo">
+    <span class="mob-title">Documentation</span>
+</div>
+
+<!-- Sidebar Backdrop (mobile) -->
+<div class="docs-sidebar-backdrop"></div>
+
+<div class="docs-layout">
+
+    <!-- ===== SIDEBAR ===== -->
+    <nav class="docs-sidebar" aria-label="Documentation navigation">
+        <a href="../index.html" class="sidebar-brand">
+            <img src="../images/sniparr-logo.png" alt="Sniparr">
+            <span>Sniparr</span>
+        </a>
+
+        <div class="sidebar-scroll">
+
+            <!-- Getting Started -->
+            <div class="nav-group">
+                <div class="nav-group-title">Getting Started</div>
+                <div class="nav-group-items">
+                    <a href="../index.html"><i class="fas fa-home"></i> Welcome</a>
+                    <a href="../getting-started/installation.html"><i class="fas fa-download"></i> Installation</a>
+                    <a href="../getting-started/setup-wizard.html"><i class="fas fa-magic"></i> Setup Wizard</a>
+                    <a href="../getting-started/first-steps.html"><i class="fas fa-rocket"></i> First Steps</a>
+                </div>
+            </div>
+
+            <!-- Apps -->
+            <div class="nav-group">
+                <div class="nav-group-title">Apps</div>
+                <div class="nav-group-items">
+                    <a href="../apps/index.html"><i class="fas fa-plug"></i> 3rd Party Apps</a>
+                </div>
+            </div>
+
+            <!-- Movie Snipe -->
+            <div class="nav-group">
+                <div class="nav-group-title">Movie Snipe</div>
+                <div class="nav-group-items">
+                    <a href="../movie-hunt/index.html"><i class="fas fa-clapperboard"></i> Overview <span class="nav-badge nav-badge-beta">Beta</span></a>
+                    <a href="../movie-hunt/media-collection.html"><i class="fas fa-photo-film"></i> Media Collection</a>
+                    <a href="../movie-hunt/indexers-clients.html"><i class="fas fa-server"></i> Indexers &amp; Clients</a>
+                    <a href="../movie-hunt/profiles.html"><i class="fas fa-sliders"></i> Profiles</a>
+                </div>
+            </div>
+
+            <!-- NZB Sniparr -->
+            <div class="nav-group">
+                <div class="nav-group-title">NZB Sniparr</div>
+                <div class="nav-group-items">
+                    <a href="../nzb-sniparr/index.html"><i class="fas fa-newspaper"></i> Overview <span class="nav-badge nav-badge-beta">Beta</span></a>
+                </div>
+            </div>
+
+            <!-- Requestarr -->
+            <div class="nav-group">
+                <div class="nav-group-title">Requests</div>
+                <div class="nav-group-items">
+                    <a href="../requestarr/index.html"><i class="fas fa-hand-paper"></i> Requests</a>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="nav-group">
+                <div class="nav-group-title">Settings</div>
+                <div class="nav-group-items">
+                    <a href="../settings/index.html"><i class="fas fa-cog"></i> Main Settings</a>
+                    <a href="../settings/scheduling.html"><i class="fas fa-clock"></i> Scheduling</a>
+                    <a href="../settings/notifications.html"><i class="fas fa-bell"></i> Notifications</a>
+                    <a href="../settings/backup-restore.html"><i class="fas fa-database"></i> Backup &amp; Restore</a>
+                    <a href="../settings/log-settings.html"><i class="fas fa-file-alt"></i> Log Settings</a>
+                    <a href="../settings/user-account.html"><i class="fas fa-user-shield"></i> User Account</a>
+                </div>
+            </div>
+
+            <!-- System -->
+            <div class="nav-group">
+                <div class="nav-group-title">System</div>
+                <div class="nav-group-items">
+                    <a href="sniparr-manager.html"><i class="fas fa-tasks"></i> Sniparr Manager</a>
+                    <a href="logs.html" class="active"><i class="fas fa-scroll"></i> Logs</a>
+                    <a href="api.html"><i class="fas fa-code"></i> API Reference</a>
+                </div>
+            </div>
+
+            <!-- Help -->
+            <div class="nav-group">
+                <div class="nav-group-title">Help</div>
+                <div class="nav-group-items">
+                    <a href="../help/faq.html"><i class="fas fa-question-circle"></i> FAQ</a>
+                    <a href="../help/community.html"><i class="fas fa-users"></i> Community</a>
+                    <a href="https://plexguide.github.io/Sniparr.io/donate.html"><i class="fas fa-heart"></i> Donate</a>
+                </div>
+            </div>
+
+        </div><!-- /sidebar-scroll -->
+
+        <div class="sidebar-footer">
+            <a href="https://discord.com/invite/PGJJjR5Cww" target="_blank" class="sf-discord" title="Discord"><i class="fab fa-discord"></i></a>
+            <a href="https://www.reddit.com/r/sniparr/" target="_blank" class="sf-reddit" title="Reddit"><i class="fab fa-reddit-alien"></i></a>
+            <a href="https://github.com/plexguide/Huntarr.io" target="_blank" class="sf-github" title="GitHub"><i class="fab fa-github"></i></a>
+            <a href="https://plexguide.github.io/Sniparr.io/donate.html" class="sf-heart" title="Donate"><i class="fas fa-heart"></i></a>
+        </div>
+    </nav>
+
+    <!-- ===== MAIN ===== -->
+    <main class="docs-main">
+        <div class="docs-content">
+
+            <h1>Logs</h1>
+            <p class="page-subtitle">View and analyze Sniparr's operational logs for troubleshooting.</p>
+
+            <h2>Overview</h2>
+            <ul>
+                <li>Sniparr maintains detailed logs of all operations</li>
+                <li>Logs are available in the UI and as files on disk</li>
+                <li>Filter by app, level, and time range</li>
+            </ul>
+
+            <h2>Viewing Logs</h2>
+            <ol>
+                <li>Navigate to System &gt; Logs in the sidebar (or Settings &gt; Logs page)</li>
+                <li>The log viewer shows recent entries</li>
+                <li>Use filters to narrow by:
+                    <ul>
+                        <li>App type (Sonarr, Radarr, Movie Snipe, etc.)</li>
+                        <li>Log level (DEBUG, INFO, WARNING, ERROR)</li>
+                        <li>Time range</li>
+                    </ul>
+                </li>
+            </ol>
+
+            <h2>Log Entry Format</h2>
+            <p>Each entry includes:</p>
+            <ul>
+                <li>Timestamp</li>
+                <li>App/module that generated the log</li>
+                <li>Log level (color-coded)</li>
+                <li>Message text</li>
+            </ul>
+
+            <h2>Log Files</h2>
+            <p>Log files are stored in <code>/config/logs/</code>:</p>
+            <ul>
+                <li><code>sniparr.log</code> — Main application log</li>
+                <li><code>sniparr.log.1</code>, <code>.2</code>, etc. — Rotated log files</li>
+                <li>File rotation happens when a file reaches the configured max size (default 5 MB)</li>
+            </ul>
+
+            <h2>Common Log Messages</h2>
+
+            <h3>Info Messages</h3>
+            <ul>
+                <li>"Starting snipe cycle for Sonarr" — Normal cycle start</li>
+                <li>"Found 3 missing episodes" — Successful detection</li>
+                <li>"Search triggered for Movie Title" — Search sent to the app</li>
+            </ul>
+
+            <h3>Warning Messages</h3>
+            <ul>
+                <li>"No missing items found" — Nothing to search (normal if library is complete)</li>
+                <li>"Rate limited by indexer" — Slow down your schedule</li>
+                <li>"Connection timeout" — Network issue with an *arr app</li>
+            </ul>
+
+            <h3>Error Messages</h3>
+            <ul>
+                <li>"API key invalid" — Check your app's API key</li>
+                <li>"Connection refused" — The *arr app may be down</li>
+                <li>"Database locked" — Usually resolves itself; restart if persistent</li>
+            </ul>
+
+            <h2>Troubleshooting with Logs</h2>
+            <p>Steps:</p>
+            <ol>
+                <li>Set log level to DEBUG in Settings &gt; Log Settings</li>
+                <li>Reproduce the issue</li>
+                <li>Check logs for ERROR or WARNING entries</li>
+                <li>Look for the sequence of events leading to the problem</li>
+                <li>Set log level back to INFO when done</li>
+            </ol>
+
+            <div class="alert alert-info">
+                <strong>DEBUG Level</strong>
+                <p>DEBUG level produces a lot of output. Only enable it when actively troubleshooting, then switch back to INFO.</p>
+            </div>
+
+        </div><!-- /docs-content -->
+
+        <footer class="docs-footer">
+            <p>Sniparr is open source. <a href="https://github.com/plexguide/Huntarr.io" target="_blank">GitHub</a> · <a href="https://discord.com/invite/PGJJjR5Cww" target="_blank">Discord</a> · <a href="https://www.reddit.com/r/sniparr/" target="_blank">Reddit</a></p>
+        </footer>
+    </main>
+
+</div><!-- /docs-layout -->
+
+<button class="back-to-top" aria-label="Back to top"><i class="fas fa-arrow-up"></i></button>
+<script src="../js/main.js"></script>
+</body>
+</html>

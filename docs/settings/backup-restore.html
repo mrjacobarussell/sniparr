@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Backup &amp; Restore - Sniparr Docs</title>
+    <link rel="icon" type="image/png" href="../images/sniparr-logo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="../css/main.css">
+</head>
+<body>
+
+<!-- Mobile Topbar -->
+<div class="docs-mobile-topbar">
+    <button class="mob-hamburger" aria-label="Open navigation"><span></span><span></span><span></span></button>
+    <img src="../images/sniparr-logo.png" alt="Sniparr" class="mob-logo">
+    <span class="mob-title">Documentation</span>
+</div>
+
+<!-- Sidebar Backdrop (mobile) -->
+<div class="docs-sidebar-backdrop"></div>
+
+<div class="docs-layout">
+
+    <!-- ===== SIDEBAR ===== -->
+    <nav class="docs-sidebar" aria-label="Documentation navigation">
+        <a href="../index.html" class="sidebar-brand">
+            <img src="../images/sniparr-logo.png" alt="Sniparr">
+            <span>Sniparr</span>
+        </a>
+
+        <div class="sidebar-scroll">
+
+            <!-- Getting Started -->
+            <div class="nav-group">
+                <div class="nav-group-title">Getting Started</div>
+                <div class="nav-group-items">
+                    <a href="../index.html"><i class="fas fa-home"></i> Welcome</a>
+                    <a href="../getting-started/installation.html"><i class="fas fa-download"></i> Installation</a>
+                    <a href="../getting-started/setup-wizard.html"><i class="fas fa-magic"></i> Setup Wizard</a>
+                    <a href="../getting-started/first-steps.html"><i class="fas fa-rocket"></i> First Steps</a>
+                </div>
+            </div>
+
+            <!-- Apps -->
+            <div class="nav-group">
+                <div class="nav-group-title">Apps</div>
+                <div class="nav-group-items">
+                    <a href="../apps/index.html"><i class="fas fa-plug"></i> 3rd Party Apps</a>
+                </div>
+            </div>
+
+            <!-- Movie Snipe -->
+            <div class="nav-group">
+                <div class="nav-group-title">Movie Snipe</div>
+                <div class="nav-group-items">
+                    <a href="../movie-hunt/index.html"><i class="fas fa-clapperboard"></i> Overview <span class="nav-badge nav-badge-beta">Beta</span></a>
+                    <a href="../movie-hunt/media-collection.html"><i class="fas fa-photo-film"></i> Media Collection</a>
+                    <a href="../movie-hunt/indexers-clients.html"><i class="fas fa-server"></i> Indexers &amp; Clients</a>
+                    <a href="../movie-hunt/profiles.html"><i class="fas fa-sliders"></i> Profiles</a>
+                </div>
+            </div>
+
+            <!-- NZB Sniparr -->
+            <div class="nav-group">
+                <div class="nav-group-title">NZB Sniparr</div>
+                <div class="nav-group-items">
+                    <a href="../nzb-sniparr/index.html"><i class="fas fa-newspaper"></i> Overview <span class="nav-badge nav-badge-beta">Beta</span></a>
+                </div>
+            </div>
+
+            <!-- Requestarr -->
+            <div class="nav-group">
+                <div class="nav-group-title">Requests</div>
+                <div class="nav-group-items">
+                    <a href="../requestarr/index.html"><i class="fas fa-hand-paper"></i> Requests</a>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="nav-group">
+                <div class="nav-group-title">Settings</div>
+                <div class="nav-group-items">
+                    <a href="index.html"><i class="fas fa-cog"></i> Main Settings</a>
+                    <a href="scheduling.html"><i class="fas fa-clock"></i> Scheduling</a>
+                    <a href="notifications.html"><i class="fas fa-bell"></i> Notifications</a>
+                    <a href="backup-restore.html" class="active"><i class="fas fa-database"></i> Backup &amp; Restore</a>
+                    <a href="log-settings.html"><i class="fas fa-file-alt"></i> Log Settings</a>
+                    <a href="user-account.html"><i class="fas fa-user-shield"></i> User Account</a>
+                </div>
+            </div>
+
+            <!-- System -->
+            <div class="nav-group">
+                <div class="nav-group-title">System</div>
+                <div class="nav-group-items">
+                    <a href="../system/sniparr-manager.html"><i class="fas fa-tasks"></i> Sniparr Manager</a>
+                    <a href="../system/logs.html"><i class="fas fa-scroll"></i> Logs</a>
+                    <a href="../system/api.html"><i class="fas fa-code"></i> API Reference</a>
+                </div>
+            </div>
+
+            <!-- Help -->
+            <div class="nav-group">
+                <div class="nav-group-title">Help</div>
+                <div class="nav-group-items">
+                    <a href="../help/faq.html"><i class="fas fa-question-circle"></i> FAQ</a>
+                    <a href="../help/community.html"><i class="fas fa-users"></i> Community</a>
+                    <a href="https://plexguide.github.io/Sniparr.io/donate.html"><i class="fas fa-heart"></i> Donate</a>
+                </div>
+            </div>
+
+        </div><!-- /sidebar-scroll -->
+
+        <div class="sidebar-footer">
+            <a href="https://discord.com/invite/PGJJjR5Cww" target="_blank" class="sf-discord" title="Discord"><i class="fab fa-discord"></i></a>
+            <a href="https://www.reddit.com/r/sniparr/" target="_blank" class="sf-reddit" title="Reddit"><i class="fab fa-reddit-alien"></i></a>
+            <a href="https://github.com/plexguide/Huntarr.io" target="_blank" class="sf-github" title="GitHub"><i class="fab fa-github"></i></a>
+            <a href="https://plexguide.github.io/Sniparr.io/donate.html" class="sf-heart" title="Donate"><i class="fas fa-heart"></i></a>
+        </div>
+    </nav>
+
+    <!-- ===== MAIN ===== -->
+    <main class="docs-main">
+        <div class="docs-content">
+
+            <h1>Backup &amp; Restore</h1>
+            <p class="page-subtitle">Protect your Sniparr configuration with automatic and manual backups.</p>
+
+            <h2>Overview</h2>
+            <ul>
+                <li>Sniparr can backup its entire database (settings, schedules, history, etc.)</li>
+                <li>Backups are stored as files in your /config/backups directory</li>
+                <li>Both automatic and manual backups are supported</li>
+                <li>Restore from any backup to recover your configuration</li>
+            </ul>
+
+            <h2>Creating a Manual Backup</h2>
+            <ol>
+                <li>Go to Settings &gt; Backup &amp; Restore</li>
+                <li>Click "Create Backup"</li>
+                <li>A backup file is created with a timestamp</li>
+                <li>The backup appears in the list below</li>
+            </ol>
+
+            <h2>Automatic Backups</h2>
+            <ul>
+                <li>Sniparr creates automatic backups on a schedule</li>
+                <li>Configure the interval in Settings</li>
+                <li>Old backups are automatically cleaned up based on retention settings</li>
+            </ul>
+
+            <h2>Restoring from Backup</h2>
+            <ol>
+                <li>Go to Settings &gt; Backup &amp; Restore</li>
+                <li>Find the backup you want to restore</li>
+                <li>Click "Restore"</li>
+                <li>Confirm the action</li>
+                <li>Sniparr restarts with the restored configuration</li>
+            </ol>
+
+            <div class="alert alert-danger">
+                <strong>Restoring a backup</strong>
+                <p>Restoring a backup replaces ALL current settings. This action cannot be undone. Make sure you have a current backup before restoring an older one.</p>
+            </div>
+
+            <h2>Uploading a Backup</h2>
+            <ul>
+                <li>You can upload a backup file from another Sniparr instance</li>
+                <li>Useful for migrating between servers</li>
+                <li>Click "Upload Backup" and select the file</li>
+            </ul>
+
+            <h2>Deleting the Database</h2>
+            <ul>
+                <li>In emergencies, you can delete the entire Sniparr database</li>
+                <li>This resets Sniparr to a fresh state (setup wizard appears)</li>
+                <li>All settings, schedules, and history are lost</li>
+            </ul>
+
+            <div class="alert alert-warning">
+                <strong>Deleting the database</strong>
+                <p>Deleting the database is irreversible. Only use this as a last resort if your database is corrupted and cannot be restored from backup.</p>
+            </div>
+
+            <h2>Tips</h2>
+            <ul>
+                <li>Create a backup before major changes (new apps, schedule overhauls)</li>
+                <li>Keep at least 3 recent backups</li>
+                <li>Test restoring from backup periodically to ensure they work</li>
+                <li>Store backup files externally for disaster recovery</li>
+            </ul>
+
+        </div><!-- /docs-content -->
+
+        <footer class="docs-footer">
+            <p>Sniparr is open source. <a href="https://github.com/plexguide/Huntarr.io" target="_blank">GitHub</a> · <a href="https://discord.com/invite/PGJJjR5Cww" target="_blank">Discord</a> · <a href="https://www.reddit.com/r/sniparr/" target="_blank">Reddit</a></p>
+        </footer>
+    </main>
+
+</div><!-- /docs-layout -->
+
+<button class="back-to-top" aria-label="Back to top"><i class="fas fa-arrow-up"></i></button>
+<script src="../js/main.js"></script>
+</body>
+</html>

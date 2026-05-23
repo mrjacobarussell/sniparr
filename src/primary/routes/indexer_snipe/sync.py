@@ -1,0 +1,327 @@
+"""Indexer Hunt — Sync logic between Indexer Hunt (global) and Movie/TV Hunt instances."""
+
+import json
+from flask import request, jsonify
+
+from . import indexer_snipe_bp
+from ...utils.logger import logger
+
+
+def _safe_priority(val, default=50):
+    """Parse priority as int, return default on failure."""
+    if val is None:
+        return default
+    try:
+        return int(val)
+    except (TypeError, ValueError):
+        return default
+
+
+def _get_all_movie_snipe_instance_ids():
+    """Return list of all Movie Hunt instance IDs."""
+    from src.primary.utils.database import get_database
+    db = get_database()
+    try:
+        with db.get_connection() as conn:
+            rows = conn.execute('SELECT id FROM movie_snipe_instances ORDER BY id').fetchall()
+            return [r[0] for r in rows]
+    except Exception:
+        return [1]
+
+
+def _get_all_tv_snipe_instance_ids():
+    """Return list of all TV Hunt instance IDs."""
+    from src.primary.utils.database import get_database
+    db = get_database()
+    try:
+        with db.get_connection() as conn:
+            rows = conn.execute('SELECT id FROM tv_snipe_instances ORDER BY id').fetchall()
+            return [r[0] for r in rows]
+    except Exception:
+        return [1]
+
+
+def _get_indexers_for_instance(instance_id):
+    """Get Movie Hunt indexer list for an instance."""
+    from src.primary.routes.media_snipe.indexers import _get_indexers_config
+    return _get_indexers_config(instance_id)
+
+
+def _save_indexers_for_instance(indexers_list, instance_id):
+    """Save Movie Hunt indexer list for an instance."""
+    from src.primary.routes.media_snipe.indexers import _save_indexers_list
+    _save_indexers_list(indexers_list, instance_id)
+
+
+def _get_tv_indexers_for_instance(instance_id):
+    """Get TV Hunt indexer list for an instance."""
+    from src.primary.routes.media_snipe.indexers import get_tv_indexers_config
+    return get_tv_indexers_config(instance_id)
+
+
+def _save_tv_indexers_for_instance(indexers_list, instance_id):
+    """Save TV Hunt indexer list for an instance."""
+    from src.primary.routes.media_snipe.indexers import save_tv_indexers_list
+    save_tv_indexers_list(indexers_list, instance_id)
+
+
+def _push_edit_to_instances(indexer_snipe_id, changes):
+    """Push API key / enabled / name changes to all linked Movie AND TV Hunt instances.
+    Returns count of instances updated."""
+    count = 0
+    for inst_id in _get_all_movie_snipe_instance_ids():
+        indexers = _get_indexers_for_instance(inst_id)
+        modified = False
+        for idx in indexers:
+            if idx.get('indexer_snipe_id') == indexer_snipe_id:
+                for k, v in changes.items():
+                    idx[k] = v
+                modified = True
+        if modified:
+            _save_indexers_for_instance(indexers, inst_id)
+            count += 1
+    for inst_id in _get_all_tv_snipe_instance_ids():
+        indexers = _get_tv_indexers_for_instance(inst_id)
+        modified = False
+        for idx in indexers:
+            if idx.get('indexer_snipe_id') == indexer_snipe_id:
+                for k, v in changes.items():
+                    idx[k] = v
+                modified = True
+        if modified:
+            _save_tv_indexers_for_instance(indexers, inst_id)
+            count += 1
+    return count
+
+
+def _cascade_delete_from_instances(indexer_snipe_id):
+    """Delete all Movie AND TV Hunt indexers linked to this Indexer Hunt id.
+    Returns count of instances affected."""
+    count = 0
+    for inst_id in _get_all_movie_snipe_instance_ids():
+        indexers = _get_indexers_for_instance(inst_id)
+        before = len(indexers)
+        indexers = [idx for idx in indexers if idx.get('indexer_snipe_id') != indexer_snipe_id]
+        if len(indexers) < before:
+            _save_indexers_for_instance(indexers, inst_id)
+            count += 1
+    for inst_id in _get_all_tv_snipe_instance_ids():
+        indexers = _get_tv_indexers_for_instance(inst_id)
+        before = len(indexers)
+        indexers = [idx for idx in indexers if idx.get('indexer_snipe_id') != indexer_snipe_id]
+        if len(indexers) < before:
+            _save_tv_indexers_for_instance(indexers, inst_id)
+            count += 1
+    return count
+
+
+def _read_instance_priorities(indexer_snipe_id):
+    """Read current priority values from all Movie AND TV Hunt instances for an Indexer Hunt indexer.
+    Returns list of {instance_id, instance_name, priority, mode}."""
+    results = []
+    from src.primary.utils.database import get_database
+    db = get_database()
+    for inst_id in _get_all_movie_snipe_instance_ids():
+        indexers = _get_indexers_for_instance(inst_id)
+        for idx in indexers:
+            if idx.get('indexer_snipe_id') == indexer_snipe_id:
+                inst_name = f'Movie Instance {inst_id}'
+                try:
+                    with db.get_connection() as conn:
+                        row = conn.execute('SELECT name FROM movie_snipe_instances WHERE id = ?', (inst_id,)).fetchone()
+                        if row:
+                            inst_name = f'Movie - {row[0]}'
+                except Exception:
+                    pass
+                results.append({
+                    'instance_id': inst_id,
+                    'instance_name': inst_name,
+                    'priority': idx.get('priority', 50),
+                    'mode': 'movie',
+                })
+    for inst_id in _get_all_tv_snipe_instance_ids():
+        indexers = _get_tv_indexers_for_instance(inst_id)
+        for idx in indexers:
+            if idx.get('indexer_snipe_id') == indexer_snipe_id:
+                inst_name = f'TV Instance {inst_id}'
+                try:
+                    with db.get_connection() as conn:
+                        row = conn.execute('SELECT name FROM tv_snipe_instances WHERE id = ?', (inst_id,)).fetchone()
+                        if row:
+                            inst_name = f'TV - {row[0]}'
+                except Exception:
+                    pass
+                results.append({
+                    'instance_id': inst_id,
+                    'instance_name': inst_name,
+                    'priority': idx.get('priority', 50),
+                    'mode': 'tv',
+                })
+    return results
+
+
+# ── API Routes ───────────────────────────────────────────────────────
+
+def _get_indexers_for_instance_by_mode(mode, instance_id):
+    """Get indexers for the given mode and instance. mode is 'movie' or 'tv'."""
+    if mode == 'tv':
+        from src.primary.routes.media_snipe.indexers import get_tv_indexers_config
+        return get_tv_indexers_config(instance_id)
+    return _get_indexers_for_instance(instance_id)
+
+
+def _save_indexers_for_instance_by_mode(mode, indexers_list, instance_id):
+    """Save indexers for the given mode and instance."""
+    if mode == 'tv':
+        from src.primary.routes.media_snipe.indexers import save_tv_indexers_list
+        save_tv_indexers_list(indexers_list, instance_id)
+    else:
+        _save_indexers_for_instance(indexers_list, instance_id)  # (list, instance_id)
+
+
+@indexer_snipe_bp.route('/api/indexer-snipe/sync', methods=['POST'])
+def api_ih_sync():
+    """Sync selected Indexer Hunt indexers to a Movie or TV Hunt instance.
+    Body: { instance_id: int, mode: 'movie'|'tv', indexer_ids: [str, ...] }
+    Each instance imports independently; pool is shared, instances do not collide.
+    """
+    try:
+        data = request.get_json() or {}
+        instance_id = data.get('instance_id')
+        mode = (data.get('mode') or 'movie').strip().lower()
+        if mode not in ('movie', 'tv'):
+            mode = 'movie'
+        indexer_ids = data.get('indexer_ids', [])
+
+        if instance_id is None:
+            return jsonify({'success': False, 'error': 'instance_id is required'}), 400
+        if not isinstance(indexer_ids, list) or not indexer_ids:
+            return jsonify({'success': False, 'error': 'indexer_ids list is required'}), 400
+
+        try:
+            instance_id = int(instance_id)
+        except (TypeError, ValueError):
+            return jsonify({'success': False, 'error': 'instance_id must be a valid integer'}), 400
+
+        from src.primary.utils.database import get_database
+        from src.primary.routes.media_snipe.indexers import (
+            INDEXER_PRESETS, INDEXER_DEFAULT_CATEGORIES,
+            TV_INDEXER_PRESETS_BY_KEY,
+            _filter_categories_movie, _filter_categories_tv,
+        )
+        import uuid as _uuid
+        db = get_database()
+
+        existing = _get_indexers_for_instance_by_mode(mode, instance_id)
+        existing_ih_ids = {idx.get('indexer_snipe_id') for idx in existing if idx.get('indexer_snipe_id')}
+
+        added = 0
+        for ih_id in indexer_ids:
+            if ih_id in existing_ih_ids:
+                continue  # already synced to this instance
+            ih_idx = db.get_indexer_snipe_indexer(ih_id)
+            if not ih_idx:
+                continue
+
+            preset = ih_idx.get('preset', 'manual')
+            if mode == 'tv':
+                # Look up TV-specific preset data (categories, api_path)
+                tv_preset = TV_INDEXER_PRESETS_BY_KEY.get(preset)
+                if tv_preset:
+                    raw = list(tv_preset.get('default_categories', [5010, 5030, 5040, 5045]))
+                    api_path = tv_preset.get('api_path', '/api')
+                else:
+                    raw = [5010, 5030, 5040, 5045]
+                    api_path = ih_idx.get('api_path', '/api')
+                default_cats = _filter_categories_tv(raw) or [5010, 5030, 5040, 5045]
+                ih_name = ih_idx.get('name') or ih_idx.get('display_name') or 'Unnamed'
+                new_idx = {
+                    'id': str(_uuid.uuid4())[:8],
+                    'name': ih_name,
+                    'display_name': ih_name,
+                    'preset': preset,
+                    'url': ih_idx.get('url', ''),
+                    'api_url': ih_idx.get('url', ''),
+                    'api_path': api_path,
+                    'api_key': ih_idx.get('api_key', ''),
+                    'protocol': ih_idx.get('protocol', 'usenet'),
+                    'categories': default_cats,
+                    'priority': _safe_priority(ih_idx.get('priority'), 50),
+                    'enabled': ih_idx.get('enabled', True),
+                    'indexer_snipe_id': ih_id,
+                }
+            else:
+                if preset in INDEXER_PRESETS:
+                    raw = list(INDEXER_PRESETS[preset].get('categories', INDEXER_DEFAULT_CATEGORIES))
+                else:
+                    raw = list(ih_idx.get('categories', INDEXER_DEFAULT_CATEGORIES))
+                default_cats = _filter_categories_movie(raw) or list(INDEXER_DEFAULT_CATEGORIES)
+                ih_name = ih_idx.get('name') or ih_idx.get('display_name') or 'Unnamed'
+                new_idx = {
+                    'name': ih_name,
+                    'display_name': ih_name,
+                    'preset': preset,
+                    'api_key': ih_idx.get('api_key', ''),
+                    'enabled': ih_idx.get('enabled', True),
+                    'categories': default_cats,
+                    'url': ih_idx.get('url', ''),
+                    'api_path': ih_idx.get('api_path', '/api'),
+                    'priority': _safe_priority(ih_idx.get('priority'), 50),
+                    'indexer_snipe_id': ih_id,
+                }
+            existing.append(new_idx)
+            added += 1
+
+        if added > 0:
+            _save_indexers_for_instance_by_mode(mode, existing, instance_id)
+
+        return jsonify({'success': True, 'added': added}), 200
+    except Exception as e:
+        logger.exception('Indexer Hunt sync error')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@indexer_snipe_bp.route('/api/indexer-snipe/linked-instances/<idx_id>', methods=['GET'])
+def api_ih_linked(idx_id):
+    """Return which Movie and TV Hunt instances use this Indexer Hunt indexer."""
+    try:
+        priorities = _read_instance_priorities(idx_id)
+        return jsonify({'linked': priorities}), 200
+    except Exception as e:
+        logger.exception('Indexer Hunt linked instances error')
+        return jsonify({'linked': [], 'error': str(e)}), 200
+
+
+@indexer_snipe_bp.route('/api/indexer-snipe/available/<int:instance_id>', methods=['GET'])
+def api_ih_available(instance_id):
+    """Return Indexer Hunt indexers not yet synced to this instance.
+    Query param: mode=movie|tv (default movie). Each instance has its own imports."""
+    try:
+        mode = (request.args.get('mode') or 'movie').strip().lower()
+        if mode not in ('movie', 'tv'):
+            mode = 'movie'
+
+        from src.primary.utils.database import get_database
+        db = get_database()
+        all_ih = db.get_indexer_snipe_indexers()
+        existing = _get_indexers_for_instance_by_mode(mode, instance_id)
+        existing_ih_ids = {idx.get('indexer_snipe_id') for idx in existing if idx.get('indexer_snipe_id')}
+
+        available = []
+        for idx in all_ih:
+            if idx['id'] not in existing_ih_ids and idx.get('enabled', True):
+                key = idx.get('api_key') or ''
+                last4 = key[-4:] if len(key) >= 4 else '****'
+                available.append({
+                    'id': idx['id'],
+                    'name': idx.get('name', 'Unnamed'),
+                    'preset': idx.get('preset', 'manual'),
+                    'protocol': idx.get('protocol', 'usenet'),
+                    'priority': idx.get('priority', 50),
+                    'api_key_last4': last4,
+                    'url': idx.get('url', ''),
+                })
+        return jsonify({'available': available}), 200
+    except Exception as e:
+        logger.exception('Indexer Hunt available error')
+        return jsonify({'available': [], 'error': str(e)}), 200

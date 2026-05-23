@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sniparr Documentation</title>
+    <link rel="icon" type="image/png" href="images/sniparr-logo.png">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <link rel="stylesheet" href="css/main.css">
+    <!-- Fallback layout if main.css fails to load (e.g. GitHub Pages) -->
+    <style>
+    .docs-layout{display:flex;min-height:100vh}
+    .docs-sidebar{position:fixed;top:0;left:0;bottom:0;width:260px;display:flex;flex-direction:column;z-index:200;background:linear-gradient(180deg,#161e2c 0%,#0f1623 100%);border-right:1px solid rgba(255,255,255,.06)}
+    .docs-main{margin-left:260px;flex:1;min-height:100vh;background:#0f1623}
+    .sidebar-brand img{width:36px;height:36px;max-width:36px}
+    .docs-mobile-topbar{display:none}
+    @media(max-width:768px){.docs-sidebar{transform:translateX(-100%);width:270px}.docs-mobile-topbar{display:flex}.docs-main{margin-left:0}}
+    </style>
+</head>
+<body>
+
+<!-- Mobile Topbar -->
+<div class="docs-mobile-topbar">
+    <button class="mob-hamburger" aria-label="Open navigation"><span></span><span></span><span></span></button>
+    <img src="images/sniparr-logo.png" alt="Sniparr" class="mob-logo">
+    <span class="mob-title">Documentation</span>
+</div>
+
+<!-- Sidebar Backdrop (mobile) -->
+<div class="docs-sidebar-backdrop"></div>
+
+<div class="docs-layout">
+
+    <!-- ===== SIDEBAR ===== -->
+    <nav class="docs-sidebar" aria-label="Documentation navigation">
+        <a href="index.html" class="sidebar-brand">
+            <img src="images/sniparr-logo.png" alt="Sniparr">
+            <span>Sniparr</span>
+        </a>
+
+        <div class="sidebar-scroll">
+            <a href="https://plexguide.github.io/Sniparr.io/donate.html" target="_blank" rel="noopener" class="sidebar-donate-link"><i class="fas fa-heart"></i> Donate</a>
+
+            <!-- Getting Started -->
+            <div class="nav-group">
+                <div class="nav-group-title">Getting Started</div>
+                <div class="nav-group-items">
+                    <a href="index.html"><i class="fas fa-home"></i> Welcome</a>
+                    <a href="getting-started/installation.html"><i class="fas fa-download"></i> Installation</a>
+                    <a href="getting-started/setup-wizard.html"><i class="fas fa-magic"></i> Setup Wizard</a>
+                    <a href="getting-started/first-steps.html"><i class="fas fa-rocket"></i> First Steps</a>
+                </div>
+            </div>
+
+            <!-- Apps -->
+            <div class="nav-group">
+                <div class="nav-group-title">Apps</div>
+                <div class="nav-group-items">
+                    <a href="apps/index.html"><i class="fas fa-plug"></i> 3rd Party Apps</a>
+                </div>
+            </div>
+
+            <!-- Movie Snipe -->
+            <div class="nav-group">
+                <div class="nav-group-title">Movie Snipe</div>
+                <div class="nav-group-items">
+                    <a href="movie-hunt/index.html"><i class="fas fa-clapperboard"></i> Overview <span class="nav-badge nav-badge-beta">Beta</span></a>
+                    <a href="movie-hunt/media-collection.html"><i class="fas fa-photo-film"></i> Media Collection</a>
+                    <a href="movie-hunt/indexers-clients.html"><i class="fas fa-server"></i> Indexers &amp; Clients</a>
+                    <a href="movie-hunt/profiles.html"><i class="fas fa-sliders"></i> Profiles</a>
+                </div>
+            </div>
+
+            <!-- NZB Sniparr -->
+            <div class="nav-group">
+                <div class="nav-group-title">NZB Sniparr</div>
+                <div class="nav-group-items">
+                    <a href="nzb-sniparr/index.html"><i class="fas fa-newspaper"></i> Overview <span class="nav-badge nav-badge-beta">Beta</span></a>
+                </div>
+            </div>
+
+            <!-- Requestarr -->
+            <div class="nav-group">
+                <div class="nav-group-title">Requests</div>
+                <div class="nav-group-items">
+                    <a href="requestarr/index.html"><i class="fas fa-hand-paper"></i> Requests</a>
+                </div>
+            </div>
+
+            <!-- Settings -->
+            <div class="nav-group">
+                <div class="nav-group-title">Settings</div>
+                <div class="nav-group-items">
+                    <a href="settings/index.html"><i class="fas fa-cog"></i> Main Settings</a>
+                    <a href="settings/scheduling.html"><i class="fas fa-clock"></i> Scheduling</a>
+                    <a href="settings/notifications.html"><i class="fas fa-bell"></i> Notifications</a>
+                    <a href="settings/backup-restore.html"><i class="fas fa-database"></i> Backup &amp; Restore</a>
+                    <a href="settings/log-settings.html"><i class="fas fa-file-alt"></i> Log Settings</a>
+                    <a href="settings/user-account.html"><i class="fas fa-user-shield"></i> User Account</a>
+                </div>
+            </div>
+
+            <!-- System -->
+            <div class="nav-group">
+                <div class="nav-group-title">System</div>
+                <div class="nav-group-items">
+                    <a href="system/sniparr-manager.html"><i class="fas fa-tasks"></i> Sniparr Manager</a>
+                    <a href="system/logs.html"><i class="fas fa-scroll"></i> Logs</a>
+                    <a href="system/api.html"><i class="fas fa-code"></i> API Reference</a>
+                </div>
+            </div>
+
+            <!-- Help -->
+            <div class="nav-group">
+                <div class="nav-group-title">Help</div>
+                <div class="nav-group-items">
+                    <a href="help/faq.html"><i class="fas fa-question-circle"></i> FAQ</a>
+                    <a href="help/community.html"><i class="fas fa-users"></i> Community</a>
+                    <a href="https://plexguide.github.io/Sniparr.io/donate.html"><i class="fas fa-heart"></i> Donate</a>
+                </div>
+            </div>
+
+        </div><!-- /sidebar-scroll -->
+
+        <div class="sidebar-footer">
+            <a href="https://discord.com/invite/PGJJjR5Cww" target="_blank" class="sf-discord" title="Discord"><i class="fab fa-discord"></i></a>
+            <a href="https://www.reddit.com/r/sniparr/" target="_blank" class="sf-reddit" title="Reddit"><i class="fab fa-reddit-alien"></i></a>
+            <a href="https://github.com/plexguide/Huntarr.io" target="_blank" class="sf-github" title="GitHub"><i class="fab fa-github"></i></a>
+            <a href="https://plexguide.github.io/Sniparr.io/donate.html" class="sf-heart" title="Donate"><i class="fas fa-heart"></i></a>
+        </div>
+    </nav>
+
+    <!-- ===== MAIN ===== -->
+    <main class="docs-main">
+        <div class="docs-content">
+
+            <h1>Welcome to Sniparr.io</h1>
+
+            <section class="welcome-admin-section" style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 24px; margin: 24px 0; padding: 24px; background: rgba(255,255,255,0.03); border-radius: 12px; border: 1px solid rgba(255,255,255,0.06);">
+                <div style="flex-shrink: 0;">
+                    <img src="https://raw.githubusercontent.com/mrjacobarussell/sniparr/main/frontend/static/logo/sniparr.svg" alt="Sniparr" width="120" height="120" style="border-radius: 50%; border: 3px solid #38bdf8; background: #0d1117; padding: 8px;">
+                </div>
+                <div style="flex: 1; min-width: 0;">
+                    <h2 style="margin-top: 0;">A Message from MrJacobarussell</h2>
+                    <p>Sniparr is a ground-up project built by a paramedic and home-lab enthusiast from the r/Unraid community. It grew out of frustration with the gaps in the *arr stack — your apps know what's missing, but they won't go hunt it down. Sniparr does. Every feature in here started as a real problem I ran into on my own server.</p>
+                    <p>If Sniparr saves you time or fills your library, consider <a href="https://buymeacoffee.com/jacobrussell_medic" target="_blank" rel="noopener"><i class="fas fa-coffee" style="color: #f59e0b;"></i> buying me a coffee</a> — it genuinely helps keep the project going. Come hang out on <a href="https://discord.com/invite/ExSFH64kVn" target="_blank" rel="noopener">Discord</a> and happy snipping!</p>
+                </div>
+            </section>
+
+            <!-- Hero -->
+            <div class="hero">
+                <img src="images/sniparr-logo.png" alt="Sniparr" class="hero-logo">
+                <h2>Sniparr Documentation</h2>
+                <p class="page-subtitle">The all-in-one companion for your *arr media stack. Automatically hunt missing media, upgrade quality, manage requests, and keep your library perfect.</p>
+                <div class="hero-actions">
+                    <a href="getting-started/installation.html" class="btn btn-primary"><i class="fas fa-download"></i> Install Sniparr</a>
+                    <a href="getting-started/first-steps.html" class="btn btn-secondary"><i class="fas fa-rocket"></i> Quick Start</a>
+                    <a href="https://github.com/mrjacobarussell/sniparr" target="_blank" class="btn btn-secondary"><i class="fab fa-github"></i> GitHub</a>
+                </div>
+            </div>
+
+            <!-- What is Sniparr? -->
+            <h2>What is Sniparr?</h2>
+            <p>Sniparr runs alongside your existing <strong>Sonarr</strong>, <strong>Radarr</strong>, <strong>Lidarr</strong>, <strong>Readarr</strong>, <strong>Whisparr</strong>, and <strong>Prowlarr</strong> instances. It continuously searches for missing media, upgrades existing files to better quality, and manages swap-outs via <strong>Swaparr</strong> — all automatically and on a schedule you control.</p>
+            <p>Beyond the *arr apps, Sniparr also includes <strong>Movie Snipe</strong> (a standalone movie grabber with its own indexers and download clients), <strong>NZB Sniparr</strong> (Usenet search), and <strong>Requests</strong> (a media request system for the person running Sniparr — not for other users).</p>
+
+            <!-- Feature cards -->
+            <h2>Key Features</h2>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="fc-icon icon-blue"><i class="fas fa-search"></i></div>
+                    <h3>Automated Hunting</h3>
+                    <p>Continuously searches for missing TV shows, movies, music, books, and more across all your *arr instances.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="fc-icon icon-green"><i class="fas fa-arrow-up"></i></div>
+                    <h3>Quality Upgrades</h3>
+                    <p>Automatically upgrades existing media to higher quality when better releases become available.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="fc-icon icon-gold"><i class="fas fa-clock"></i></div>
+                    <h3>Smart Scheduling</h3>
+                    <p>Per-app, per-instance schedules with configurable cycles, intervals, and caps so you never overload your indexers.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="fc-icon icon-purple"><i class="fas fa-bell"></i></div>
+                    <h3>Notifications</h3>
+                    <p>Discord, Telegram, Pushover, Email, Apprise, and more. Know the moment Sniparr finds or grabs something.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="fc-icon icon-red"><i class="fas fa-clapperboard"></i></div>
+                    <h3>Movie Snipe</h3>
+                    <p>A full standalone movie grabber with indexer support, download client integration, and custom format scoring.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="fc-icon icon-cyan"><i class="fas fa-exchange-alt"></i></div>
+                    <h3>Swaparr Integration</h3>
+                    <p>Automatically manage stalled or slow downloads by swapping them for better alternatives.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="fc-icon icon-orange"><i class="fas fa-hand-paper"></i></div>
+                    <h3>Requests</h3>
+                    <p>Discover and request movies and shows for your library — for the person running Sniparr, not for other users.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="fc-icon icon-blue"><i class="fas fa-shield-halved"></i></div>
+                    <h3>Secure &amp; Self-Hosted</h3>
+                    <p>Runs on your own hardware. Authentication, 2FA, and Plex SSO keep your setup safe.</p>
+                </div>
+            </div>
+
+            <!-- Quick links -->
+            <h2>Quick Links</h2>
+            <div class="card-grid">
+                <a href="getting-started/installation.html" class="card">
+                    <div class="card-icon icon-blue"><i class="fas fa-download"></i></div>
+                    <h3>Installation</h3>
+                    <p>Docker, Unraid, or run from source — get up and running in minutes.</p>
+                </a>
+                <a href="apps/index.html" class="card">
+                    <div class="card-icon icon-green"><i class="fas fa-plug"></i></div>
+                    <h3>Connect Your Apps</h3>
+                    <p>Add your Sonarr, Radarr, and other *arr instances to Sniparr.</p>
+                </a>
+                <a href="settings/scheduling.html" class="card">
+                    <div class="card-icon icon-gold"><i class="fas fa-clock"></i></div>
+                    <h3>Scheduling</h3>
+                    <p>Configure when and how often Sniparr hunts for your media.</p>
+                </a>
+                <a href="help/faq.html" class="card">
+                    <div class="card-icon icon-purple"><i class="fas fa-question-circle"></i></div>
+                    <h3>FAQ &amp; Troubleshooting</h3>
+                    <p>Common questions, issues, and solutions.</p>
+                </a>
+            </div>
+
+            <!-- Supported Apps -->
+            <h2>Supported Apps</h2>
+            <table>
+                <thead>
+                    <tr><th>App</th><th>Missing</th><th>Upgrade</th><th>Notes</th></tr>
+                </thead>
+                <tbody>
+                    <tr><td><strong>Sonarr</strong></td><td>Yes</td><td>Yes</td><td>TV series — episodes and seasons</td></tr>
+                    <tr><td><strong>Radarr</strong></td><td>Yes</td><td>Yes</td><td>Movies</td></tr>
+                    <tr><td><strong>Lidarr</strong></td><td>Yes</td><td>Yes</td><td>Music — albums and tracks</td></tr>
+                    <tr><td><strong>Readarr</strong></td><td>Yes</td><td>Yes</td><td>Books and audiobooks</td></tr>
+                    <tr><td><strong>Whisparr</strong></td><td>Yes</td><td>Yes</td><td>Adult content</td></tr>
+                    <tr><td><strong>Prowlarr</strong></td><td>—</td><td>—</td><td>Indexer management (sync with Sniparr)</td></tr>
+                    <tr><td><strong>Swaparr</strong></td><td>—</td><td>—</td><td>Stalled download management</td></tr>
+                </tbody>
+            </table>
+
+        </div><!-- /docs-content -->
+
+        <footer class="docs-footer">
+            <p>Sniparr is open source. <a href="https://github.com/plexguide/Huntarr.io" target="_blank">GitHub</a> · <a href="https://discord.com/invite/PGJJjR5Cww" target="_blank">Discord</a> · <a href="https://www.reddit.com/r/sniparr/" target="_blank">Reddit</a></p>
+        </footer>
+    </main>
+
+</div><!-- /docs-layout -->
+
+<button class="back-to-top" aria-label="Back to top"><i class="fas fa-arrow-up"></i></button>
+<script src="js/main.js"></script>
+</body>
+</html>

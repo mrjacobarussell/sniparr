@@ -1,0 +1,240 @@
+#!/usr/bin/env python3
+"""
+Lidarr cutoff upgrade processing module for Sniparr
+Handles albums that do not meet the configured quality cutoff.
+"""
+
+import time
+import random
+from typing import Dict, Any, Optional, Callable, List, Union, Set # Added List, Union and Set
+from src.primary.utils.logger import get_logger
+from src.primary.apps.lidarr import api as lidarr_api
+from src.primary.utils.history_utils import log_processed_media
+from src.primary.stateful_manager import is_processed, add_processed_id
+from src.primary.stats_manager import increment_stat, check_hourly_cap_exceeded
+from src.primary.settings_manager import load_settings, get_advanced_setting
+from src.primary.state import check_state_reset
+from src.primary.apps._common.settings import extract_app_settings, validate_settings
+from src.primary.apps._common.filtering import filter_exempt_items, filter_unprocessed
+from src.primary.apps._common.processing import should_continue_processing
+from src.primary.apps._common.tagging import try_tag_item, extract_tag_settings
+
+# Get logger for the app
+lidarr_logger = get_logger(__name__) # Use __name__ for correct logger hierarchy
+
+def process_cutoff_upgrades(
+    app_settings: Dict[str, Any], # Changed signature: Use app_settings
+    stop_check: Callable[[], bool] # Changed signature: Use stop_check
+) -> bool:
+    """
+    Processes cutoff upgrades for albums in a specific Lidarr instance.
+
+    Args:
+        app_settings (dict): Dictionary containing combined instance and general Lidarr settings.
+        stop_check (Callable[[], bool]): Function to check if shutdown is requested.
+
+    Returns:
+        bool: True if any items were processed, False otherwise.
+    """
+    lidarr_logger.info("Starting quality cutoff upgrades processing cycle for Lidarr.")
+    processed_any = False
+
+    # Extract common settings using shared utility
+    s = extract_app_settings(app_settings, "lidarr", "hunt_upgrade_items", "Lidarr Default")
+    instance_name = s['instance_name']
+    instance_key = s['instance_key']
+    api_url = s['api_url']
+    api_key = s['api_key']
+    api_timeout = s['api_timeout']
+    monitored_only = s['monitored_only']
+    hunt_upgrade_items = s['hunt_count']
+    command_wait_delay = s['command_wait_delay']
+    command_wait_attempts = s['command_wait_attempts']
+    
+    # App-specific settings
+    upgrade_selection_method = (app_settings.get("upgrade_selection_method") or "cutoff").strip().lower()
+    if upgrade_selection_method not in ("cutoff", "tags"):
+        upgrade_selection_method = "cutoff"
+    upgrade_tag = (app_settings.get("upgrade_tag") or "").strip()
+
+    lidarr_logger.info(f"Using API timeout of {api_timeout} seconds for Lidarr upgrades")
+    lidarr_logger.debug(f"Processing upgrades for instance: {instance_name}")
+
+    if not validate_settings(api_url, api_key, hunt_upgrade_items, "lidarr", lidarr_logger):
+        return False
+
+    lidarr_logger.info(f"Looking for quality upgrades for {instance_name}")
+    lidarr_logger.debug(f"Processing up to {hunt_upgrade_items} items for quality upgrade")
+    
+    # Reset state files if enough time has passed
+    check_state_reset("lidarr")
+    
+    processed_count = 0
+    processed_any = False
+
+    # Extract tag settings using shared utility
+    tag_settings = extract_tag_settings(app_settings)
+
+    try:
+        if upgrade_selection_method == "tags":
+            if not upgrade_tag:
+                lidarr_logger.warning("Upgrade selection method is 'Tags' but no upgrade tag is configured. Skipping.")
+                return False
+            lidarr_logger.info(f"Retrieving albums whose artists DON'T have tag \"{upgrade_tag}\" (Upgradinatorr-style: tag tracks processed)...")
+            cutoff_unmet_data = lidarr_api.get_albums_without_artist_tag(
+                api_url, api_key, api_timeout, upgrade_tag, monitored_only
+            )
+            if cutoff_unmet_data is None:
+                return False
+            if not cutoff_unmet_data:
+                lidarr_logger.info(f"No albums found whose artists lack the tag \"{upgrade_tag}\" (all have been processed).")
+                return False
+            lidarr_logger.info(f"Found {len(cutoff_unmet_data)} albums whose artists DON'T have tag \"{upgrade_tag}\".")
+        else:
+            lidarr_logger.info(f"Retrieving cutoff unmet albums...")
+            # Use efficient random page selection instead of fetching all albums
+            cutoff_unmet_data = lidarr_api.get_cutoff_unmet_albums_random_page(
+                api_url, api_key, api_timeout, monitored_only, hunt_upgrade_items * 2
+            )
+            if cutoff_unmet_data is None:  # API call failed
+                lidarr_logger.error("Failed to retrieve cutoff unmet albums from Lidarr API.")
+                return False
+            if not cutoff_unmet_data:
+                lidarr_logger.info("No cutoff unmet albums found.")
+                return False
+            lidarr_logger.info(f"Retrieved {len(cutoff_unmet_data)} cutoff unmet albums from random page selection.")
+
+        # Filter out albums whose artist has an exempt tag (issue #676)
+        cutoff_unmet_data = filter_exempt_items(
+            cutoff_unmet_data, s['exempt_tags'], lidarr_api,
+            api_url, api_key, api_timeout,
+            get_tags_fn=lambda a: (a.get("artist") or {}).get("tags", []),
+            get_id_fn=lambda a: a.get("id"),
+            get_title_fn=lambda a: a.get("title", "Unknown"),
+            app_type="lidarr", logger=lidarr_logger
+        )
+
+        # Filter out already processed items
+        unprocessed_albums = []
+        for album in cutoff_unmet_data:
+            album_id = album.get('id')  # Keep as integer
+            if album_id and not is_processed("lidarr", instance_key, str(album_id)):  # Convert to string only for processed check
+                unprocessed_albums.append(album)
+            else:
+                lidarr_logger.debug(f"Skipping already processed album ID: {album_id}")
+        
+        lidarr_logger.info(f"Found {len(unprocessed_albums)} unprocessed albums out of {len(cutoff_unmet_data)} total albums eligible for quality upgrade.")
+        
+        if not unprocessed_albums:
+            lidarr_logger.info("No unprocessed albums found for quality upgrade. Skipping cycle.")
+            return False
+
+        # Always select albums randomly
+        albums_to_search = random.sample(unprocessed_albums, min(len(unprocessed_albums), hunt_upgrade_items))
+        lidarr_logger.info(f"Randomly selected {len(albums_to_search)} albums for upgrade search.")
+
+        album_ids_to_search = [album['id'] for album in albums_to_search]
+
+        if not album_ids_to_search:
+             lidarr_logger.info("No album IDs selected for upgrade search. Skipping trigger.")
+             return False
+
+        # Prepare detailed album information for logging
+        album_details_log = []
+        for i, album in enumerate(albums_to_search):
+            # Extract useful information for logging
+            album_title = album.get('title', f'Album ID {album["id"]}')
+            artist_name = album.get('artist', {}).get('artistName', 'Unknown Artist')
+            quality = album.get('quality', {}).get('quality', {}).get('name', 'Unknown Quality')
+            album_details_log.append(f"{i+1}. {artist_name} - {album_title} (ID: {album['id']}, Current Quality: {quality})")
+
+        # Log each album on a separate line for better readability
+        if album_details_log:
+            lidarr_logger.info(f"Albums selected for quality upgrade in this cycle:")
+            for album_detail in album_details_log:
+                lidarr_logger.info(f" {album_detail}")
+
+        # Check stop event before triggering search
+        if stop_check(): # Use the new stop_check function
+            lidarr_logger.warning("Shutdown requested before album upgrade search trigger.")
+            return False
+        
+        # Check API limit before processing albums
+        try:
+            if check_hourly_cap_exceeded("lidarr"):
+                lidarr_logger.warning(f"🛑 Lidarr API hourly limit reached - stopping upgrade processing")
+                return False
+        except Exception as e:
+            lidarr_logger.error(f"Error checking hourly API cap: {e}")
+            # Continue processing if cap check fails - safer than stopping
+
+        # Mark the albums as processed BEFORE triggering the search
+        for album_id in album_ids_to_search:
+            success = add_processed_id("lidarr", instance_key, str(album_id))
+            lidarr_logger.debug(f"Added album ID {album_id} to processed list for {instance_name}, success: {success}")
+
+        lidarr_logger.info(f"Triggering Album Search for {len(album_ids_to_search)} albums for upgrade on instance {instance_name}: {album_ids_to_search}")
+        # Pass necessary details extracted above to the API function
+        command_id = lidarr_api.search_albums(
+            api_url,
+            api_key,
+            api_timeout,
+            album_ids_to_search
+        )
+        if command_id:
+            lidarr_logger.debug(f"Upgrade album search command triggered with ID: {command_id} for albums: {album_ids_to_search}")
+            increment_stat("lidarr", "upgraded", 1, instance_key)  # Use appropriate stat key
+            
+            # For tag-based method: add the upgrade tag to artists to mark as processed (Upgradinatorr-style)
+            if upgrade_selection_method == "tags" and upgrade_tag:
+                tagged_artists = set()
+                for album in albums_to_search:
+                    artist_id = album.get('artistId')
+                    if artist_id and artist_id not in tagged_artists:
+                        try:
+                            tag_id = lidarr_api.get_or_create_tag(api_url, api_key, api_timeout, upgrade_tag)
+                            if tag_id:
+                                lidarr_api.add_tag_to_artist(api_url, api_key, api_timeout, artist_id, tag_id)
+                                lidarr_logger.debug(f"Added upgrade tag '{upgrade_tag}' to artist {artist_id} to mark as processed")
+                                tagged_artists.add(artist_id)
+                        except Exception as e:
+                            lidarr_logger.warning(f"Failed to add upgrade tag '{upgrade_tag}' to artist {artist_id}: {e}")
+            
+            # Tag artists with sniparr-upgraded if enabled (unified tagging)
+            tagged_artists_upgraded = set()
+            for album in albums_to_search:
+                artist_id = album.get('artistId')
+                if artist_id and artist_id not in tagged_artists_upgraded:
+                    try_tag_item(tag_settings, "upgraded", lidarr_api.tag_processed_artist,
+                                 api_url, api_key, api_timeout, artist_id,
+                                 lidarr_logger, f"artist {artist_id}")
+                    tagged_artists_upgraded.add(artist_id)
+            
+            # Log to history
+            for album_id in album_ids_to_search:
+                # Find the album info for this ID to log to history
+                for album in albums_to_search:
+                    if album['id'] == album_id:
+                        album_title = album.get('title', f'Album ID {album_id}')
+                        artist_name = album.get('artist', {}).get('artistName', 'Unknown Artist')
+                        media_name = f"{artist_name} - {album_title}"
+                        # Use foreignAlbumId for Lidarr URLs (falls back to internal ID if not available)
+                        foreign_album_id = album.get('foreignAlbumId', album_id)
+                        log_processed_media("lidarr", media_name, foreign_album_id, instance_key, "upgrade", display_name_for_log=app_settings.get("instance_display_name") or instance_name)
+                        lidarr_logger.debug(f"Logged quality upgrade to history for album ID {album_id}")
+                        break
+                
+            time.sleep(command_wait_delay) # Basic delay
+            processed_count += len(album_ids_to_search)
+            processed_any = True # Mark that we processed something
+            # Consider adding wait_for_command logic if needed
+            # wait_for_command(api_url, api_key, command_id, command_wait_delay, command_wait_attempts)
+        else:
+            lidarr_logger.warning(f"Failed to trigger upgrade album search for IDs {album_ids_to_search} on {instance_name}.")
+
+    except Exception as e:
+        lidarr_logger.error(f"An error occurred during upgrade album processing for {instance_name}: {e}", exc_info=True)
+        return False # Indicate failure
+
+    lidarr_logger.info(f"Upgrade album processing finished for {instance_name}. Triggered searches for {processed_count} items.")
+    return processed_any # Return True if anything was processed

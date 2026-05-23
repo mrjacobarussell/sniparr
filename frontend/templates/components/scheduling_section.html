@@ -1,0 +1,266 @@
+<section id="schedulingSection" class="content-section" style="display: none;">
+    <link rel="stylesheet" href="./static/css/instance-editor.css?v=1.0.2">
+    {% from 'components/page_header_partial.html' import page_header %}
+    {{ page_header(back_href='./#settings', parent_icon='fas fa-cog', parent_name='Settings', current_name='Scheduling', sponsor_section_id='scheduling') }}
+    <div class="sched-container">
+
+        <!-- Add New Schedule -->
+        <div class="sched-card" id="addScheduleForm">
+            <div class="sched-card-header">
+                <div class="sched-card-header-left">
+                    <div class="sched-card-icon sched-icon-blue">
+                        <i class="fas fa-plus-circle"></i>
+                    </div>
+                    <h3>Add New Schedule</h3>
+                </div>
+                <div class="sched-timezone-display">
+                    <span class="timezone-label">Server Time:</span>
+                    <i class="fas fa-globe-americas"></i>
+                    <span id="serverTimezone">UTC</span>
+                    <span class="timezone-separator">|</span>
+                    <span id="serverCurrentTime">--:--</span>
+                </div>
+            </div>
+            <div class="sched-card-body">
+
+                <!-- Time -->
+                <div class="sched-form-row">
+                    <div class="sched-form-group sched-form-time">
+                        <label>Time</label>
+                        <div class="sched-time-picker">
+                            <select id="scheduleHour" class="sched-time-select">
+                                <script nonce="{{ g.csp_nonce }}">
+                                    for (let h = 0; h < 24; h++) {
+                                        document.write(`<option value="${h}">${String(h).padStart(2,'0')}</option>`);
+                                    }
+                                </script>
+                            </select>
+                            <span class="sched-time-colon">:</span>
+                            <select id="scheduleMinute" class="sched-time-select">
+                                <script nonce="{{ g.csp_nonce }}">
+                                    for (let m = 0; m < 60; m += 5) {
+                                        document.write(`<option value="${m}">${String(m).padStart(2,'0')}</option>`);
+                                    }
+                                </script>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="sched-form-group sched-form-action">
+                        <label for="scheduleAction">Action</label>
+                        <select id="scheduleAction">
+                            <optgroup label="Activity Control">
+                                <option value="enable">Enable</option>
+                                <option value="disable">Disable</option>
+                            </optgroup>
+                            <optgroup label="API Limits">
+                                <option value="api-5">API Limit: 5</option>
+                                <option value="api-10">API Limit: 10</option>
+                                <option value="api-20">API Limit: 20</option>
+                                <option value="api-30">API Limit: 30</option>
+                                <option value="api-50">API Limit: 50</option>
+                                <option value="api-100">API Limit: 100</option>
+                            </optgroup>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- App + Instance (two cascading dropdowns) -->
+                <div class="sched-form-row">
+                    <div class="sched-form-group sched-form-app">
+                        <label for="scheduleAppType">App</label>
+                        <select id="scheduleAppType">
+                            <option value="global">All Apps (Global)</option>
+                            <option value="movie_hunt">Movie Snipe</option>
+                            <option value="tv_hunt">TV Snipe</option>
+                            <option value="sonarr">Sonarr</option>
+                            <option value="radarr">Radarr</option>
+                            <option value="lidarr">Lidarr</option>
+                            <option value="readarr">Readarr</option>
+                            <option value="whisparr">Whisparr</option>
+                            <option value="eros">Eros</option>
+                        </select>
+                    </div>
+                    <div class="sched-form-group sched-form-instance">
+                        <label for="scheduleInstance">Instance</label>
+                        <select id="scheduleInstance">
+                            <option value="all">All Instances</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- The hidden combined value used by the JS save logic -->
+                <select id="scheduleApp" style="display:none;"></select>
+
+                <!-- Days -->
+                <div class="sched-form-group">
+                    <label>Frequency</label>
+                    <div class="sched-day-pills">
+                        <label class="sched-day-pill sched-day-daily">
+                            <input type="checkbox" id="day-daily">
+                            <span><i class="fas fa-calendar-alt"></i> Daily</span>
+                        </label>
+                        <div class="sched-day-divider"></div>
+                        <label class="sched-day-pill"><input type="checkbox" id="day-monday"><span>Mon</span></label>
+                        <label class="sched-day-pill"><input type="checkbox" id="day-tuesday"><span>Tue</span></label>
+                        <label class="sched-day-pill"><input type="checkbox" id="day-wednesday"><span>Wed</span></label>
+                        <label class="sched-day-pill"><input type="checkbox" id="day-thursday"><span>Thu</span></label>
+                        <label class="sched-day-pill"><input type="checkbox" id="day-friday"><span>Fri</span></label>
+                        <label class="sched-day-pill"><input type="checkbox" id="day-saturday"><span>Sat</span></label>
+                        <label class="sched-day-pill"><input type="checkbox" id="day-sunday"><span>Sun</span></label>
+                    </div>
+                </div>
+
+                <!-- Add button -->
+                <button type="button" id="addScheduleButton" class="sched-btn sched-btn-primary" disabled>
+                    <i class="fas fa-plus"></i> Add Schedule
+                </button>
+            </div>
+        </div>
+
+        <!-- Current Schedules -->
+        <div class="sched-card" id="schedulesListPanel">
+            <div class="sched-card-header">
+                <div class="sched-card-header-left">
+                    <div class="sched-card-icon sched-icon-slate">
+                        <i class="fas fa-th-list"></i>
+                    </div>
+                    <h3>Current Schedules</h3>
+                </div>
+            </div>
+            <div class="sched-card-body">
+                <div id="schedulesContainer"></div>
+                <div id="noSchedulesMessage" class="sched-empty-state">
+                    <i class="fas fa-calendar-times"></i>
+                    <p>No schedules configured. Use the form above to add a schedule.</p>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script nonce="{{ g.csp_nonce }}">
+    // Day checkbox logic
+    (function() {
+        const dailyCb = document.getElementById('day-daily');
+        const dayIds = ['day-monday','day-tuesday','day-wednesday','day-thursday','day-friday','day-saturday','day-sunday'];
+        const addBtn = document.getElementById('addScheduleButton');
+
+        function updateAddButton() {
+            const anyChecked = dayIds.some(id => document.getElementById(id).checked);
+            addBtn.disabled = !anyChecked;
+        }
+
+        if (dailyCb) {
+            dailyCb.addEventListener('change', function() {
+                dayIds.forEach(id => { document.getElementById(id).checked = dailyCb.checked; });
+                updateAddButton();
+            });
+        }
+
+        dayIds.forEach(id => {
+            const cb = document.getElementById(id);
+            if (cb) {
+                cb.addEventListener('change', function() {
+                    const allChecked = dayIds.every(i => document.getElementById(i).checked);
+                    if (dailyCb) dailyCb.checked = allChecked;
+                    updateAddButton();
+                });
+            }
+        });
+
+        // Cascading app → instance dropdown
+        const appTypeSelect = document.getElementById('scheduleAppType');
+        const instanceSelect = document.getElementById('scheduleInstance');
+        const hiddenAppSelect = document.getElementById('scheduleApp');
+
+        function updateHiddenApp() {
+            const appType = appTypeSelect.value;
+            const instanceVal = instanceSelect.value;
+            if (appType === 'global') {
+                hiddenAppSelect.value = 'global';
+            } else if (instanceVal === 'all') {
+                hiddenAppSelect.value = appType + '::all';
+            } else {
+                hiddenAppSelect.value = appType + '::' + instanceVal;
+            }
+        }
+
+        function populateInstanceDropdown() {
+            const appType = appTypeSelect.value;
+            instanceSelect.innerHTML = '';
+
+            if (appType === 'global') {
+                instanceSelect.innerHTML = '<option value="all">All Instances</option>';
+                instanceSelect.disabled = true;
+                updateHiddenApp();
+                return;
+            }
+
+            instanceSelect.disabled = false;
+            // Add "All X Instances" option
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'All Instances';
+            instanceSelect.appendChild(allOpt);
+
+            // Movie Snipe: instances come from a dedicated API, not settings cache
+            if (appType === 'movie_hunt') {
+                const cached = window._movieHuntInstances;
+                if (cached && Array.isArray(cached)) {
+                    cached.forEach(function(inst) {
+                        const opt = document.createElement('option');
+                        opt.value = String(inst.id);
+                        opt.textContent = inst.name || ('Instance ' + inst.id);
+                        instanceSelect.appendChild(opt);
+                    });
+                }
+                updateHiddenApp();
+                return;
+            }
+
+            // TV Snipe: instances come from a dedicated API, not settings cache
+            if (appType === 'tv_hunt') {
+                const cached = window._tvHuntInstances;
+                if (cached && Array.isArray(cached)) {
+                    cached.forEach(function(inst) {
+                        const opt = document.createElement('option');
+                        opt.value = String(inst.id);
+                        opt.textContent = inst.name || ('Instance ' + inst.id);
+                        instanceSelect.appendChild(opt);
+                    });
+                }
+                updateHiddenApp();
+                return;
+            }
+
+            // Other apps: get instances from settings cache
+            const settings = (window.sniparrUI && window.sniparrUI.originalSettings) ? window.sniparrUI.originalSettings : {};
+            const appSettings = settings[appType] || {};
+            const instances = Array.isArray(appSettings.instances) ? appSettings.instances : [];
+
+            instances.forEach(function(inst, idx) {
+                if (!inst || typeof inst !== 'object') return;
+                const opt = document.createElement('option');
+                opt.value = inst.instance_id || String(idx);
+                opt.textContent = inst.name || inst.instance_name || ('Instance ' + (idx + 1));
+                instanceSelect.appendChild(opt);
+            });
+
+            updateHiddenApp();
+        }
+
+        if (appTypeSelect) {
+            appTypeSelect.addEventListener('change', populateInstanceDropdown);
+        }
+        if (instanceSelect) {
+            instanceSelect.addEventListener('change', updateHiddenApp);
+        }
+
+        // Initial population
+        populateInstanceDropdown();
+    })();
+    </script>
+</section>
+
+<link rel="stylesheet" href="./static/css/scheduling.css">

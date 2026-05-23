@@ -1,0 +1,268 @@
+/* 
+ * Cycle Countdown Timer Styles
+ * Styling for app cycle countdown timers on the home page
+ */
+
+/* Base styling for all timer elements */
+.cycle-timer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.9rem;
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin: 8px auto 6px auto;
+    background-color: rgba(0, 0, 0, 0.15);
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    transition: all 0.3s ease;
+    user-select: none;
+    max-width: 85%;
+    position: relative;
+    z-index: 1;
+}
+
+/* Special styling for inline timers next to reset buttons */
+.inline-timer {
+    margin: 0;
+    min-width: 110px;
+    background-color: rgba(0, 0, 0, 0.1);
+    font-size: 0.85rem;
+    border-radius: 4px;
+}
+
+/* Reset button container stacks its children so State Management is on its own row below */
+.reset-button-container {
+    flex-direction: column;
+    align-items: center;
+    position: relative; /* For absolute positioning of state reset countdown */
+    padding-bottom: 18px !important; /* Make room for the reset line at the bottom */
+}
+
+/* Styling for the container that holds both reset button and timer */
+.reset-and-timer-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    gap: 8px;
+}
+
+/* Icon styling */
+.cycle-timer i {
+    margin-right: 5px;
+    font-size: 0.9rem;
+}
+
+/* Timer value text */
+.timer-value {
+    font-family: monospace;
+    font-weight: 600;
+}
+
+/* Pending reset state - reset requested, cycle stopping before sleep starts */
+.timer-value.pending-reset-state {
+    color: #ffaa00;
+}
+
+/* Error state styling */
+.timer-value.error {
+    color: #ff5252;
+}
+
+.timer-value {
+    letter-spacing: 0.5px;
+}
+
+/* Timer states based on remaining time */
+.timer-normal {
+    color: var(--text-light, white);
+}
+
+/* Under 5 minutes - orange */
+.timer-soon {
+    color: #ff8c00 !important;
+}
+
+/* Under 1 minute - red */
+.timer-imminent {
+    color: #ff3333 !important;
+}
+
+.timer-error {
+    color: var(--error-color, #f44336);
+    opacity: 0.7;
+}
+
+
+/* Mobile responsiveness */
+@media (max-width: 768px) {
+    .cycle-timer {
+        font-size: 0.75rem;
+        padding: 2px 6px;
+    }
+}
+
+/* Tooltip for more information on hover */
+.cycle-timer:hover {
+    cursor: help;
+}
+
+/* Specific app colorings for borders only - numbers should be white by default */
+/* Colors based on user preferences */
+.movie_hunt .cycle-timer,
+.movie-hunt .cycle-timer {
+    border-left: 2px solid var(--movie-snipe-color, #f59e0b);
+}
+
+.sonarr .cycle-timer {
+    border-left: 2px solid var(--sonarr-color, #00c2ce);
+}
+
+.radarr .cycle-timer {
+    border-left: 2px solid var(--radarr-color, #ffbe0b);
+}
+
+.lidarr .cycle-timer {
+    border-left: 2px solid var(--lidarr-color, #40c057);
+}
+
+.readarr .cycle-timer {
+    border-left: 2px solid var(--readarr-color, #ff5252);
+}
+
+.whisparr .cycle-timer {
+    border-left: 2px solid var(--whisparr-color, #ff45b7);
+}
+
+/* Additional style for Whisparr V3 (which is actually 'eros' in the HTML) */
+.eros .cycle-timer {
+    border-left: 2px solid var(--whisparr-color, #ff45b7);
+}
+
+/* Make sure Whisparr V3/eros timer values have the same color treatment */
+.eros .timer-value {
+    color: white;
+}
+
+/* Style Whisparr V3 card - normal state */
+.app-stats-card.eros {
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+    transition: box-shadow 0.3s ease, border 0.3s ease;
+}
+
+/* Add pink/purple glow only on hover */
+.app-stats-card.eros:hover {
+    box-shadow: 0 0 15px rgba(255, 69, 183, 0.4) !important;
+    border: 1px solid rgba(255, 69, 183, 0.2) !important;
+}
+
+/* Ensure the timer in Whisparr V3 shows the pink/purple left border */
+.eros .cycle-timer, #erosCycleTimer {
+    border-left: 2px solid #ff45b7 !important;
+}
+
+/* Default timer value is white and smaller as requested */
+.timer-value {
+    color: white;
+    font-weight: 600;
+    font-size: 80%; /* Make text 20% smaller */
+}
+
+/* Light blue color for Refreshing text */
+/* Timer value styling for refreshing state - use data attributes instead of :contains */
+.timer-value[data-state="refreshing"] {
+    color: #00c2ce !important; /* Light blue color */
+}
+.refreshing-state {
+    color: #00c2ce !important; /* Light blue color */
+}
+
+/* Make clock icon smaller too */
+.cycle-timer i.fas.fa-clock {
+    font-size: 80%; /* Make icon 20% smaller */
+}
+
+/* Prevent raw JSON from showing during initial load */
+.stat-number {
+    min-height: 1.5em;
+    visibility: visible;
+}
+
+/* Show numbers even during loading - transparency caused blank look for 10s */
+.stats-loading .stat-number {
+    position: relative;
+    opacity: 0.6;
+}
+
+.stats-loading .stat-number::after {
+    content: "0";
+    position: absolute;
+    left: 0;
+    right: 0;
+    color: white;
+    text-align: center;
+}
+
+/* State Management reset: minimal at the bottom, centered (like 1st image) */
+.state-reset-countdown {
+    position: absolute;
+    bottom: 4px;
+    left: 0;
+    right: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+    font-size: 0.65rem;
+    color: rgba(148, 163, 184, 0.5);
+    gap: 4px;
+    user-select: none;
+    width: 100%;
+    background: none !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
+.state-reset-countdown i {
+    font-size: 0.6rem;
+    opacity: 0.8;
+    cursor: help;
+}
+
+/* Instant custom tooltip for State Management Reset */
+.state-reset-countdown .custom-tooltip {
+    visibility: hidden;
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(15, 23, 42, 0.95);
+    color: #fff;
+    text-align: center;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    white-space: nowrap;
+    z-index: 10;
+    opacity: 0;
+    transition: opacity 0.1s ease;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    margin-bottom: 5px;
+    pointer-events: none;
+}
+
+.state-reset-countdown:hover .custom-tooltip {
+    visibility: visible;
+    opacity: 1;
+}
+
+.state-reset-countdown .custom-tooltip::after {
+    content: "";
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    margin-left: -5px;
+    border-width: 5px;
+    border-style: solid;
+    border-color: rgba(15, 23, 42, 0.95) transparent transparent transparent;
+}

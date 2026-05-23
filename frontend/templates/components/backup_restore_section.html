@@ -1,0 +1,250 @@
+<section id="backupRestoreSection" class="content-section" style="display: none;">
+    <div class="app-content-panel" style="padding: 20px;">
+        {% from 'components/page_header_partial.html' import page_header %}
+        {{ page_header(back_href='./#settings', parent_icon='fas fa-database', parent_name='Settings', current_name='Backup & Restore', sponsor_section_id='backup-restore') }}
+        <div class="br-container">
+
+        <!-- Automatic Backup Settings -->
+        <div class="br-card">
+            <div class="br-card-header">
+                <div class="br-card-icon br-icon-blue">
+                    <i class="fas fa-clock"></i>
+                </div>
+                <h3>Automatic Backup Settings</h3>
+            </div>
+            <div class="br-card-body">
+                <div class="br-field">
+                    <label for="backup-frequency">
+                        <a href="https://github.com/mrjacobarussell/sniparr"
+                            class="br-info-link" target="_blank" rel="noopener"><i class="fas fa-info-circle"></i></a>
+                        Backup Frequency (Days)
+                    </label>
+                    <input type="number" id="backup-frequency" min="1" max="30" value="3"
+                        placeholder="Enter number of days between backups">
+                    <span class="br-hint">How often Sniparr should automatically create database backups (default: 3 days)</span>
+                </div>
+
+                <div class="br-field">
+                    <label for="backup-retention">
+                        <a href="https://github.com/mrjacobarussell/sniparr"
+                            class="br-info-link" target="_blank" rel="noopener"><i class="fas fa-info-circle"></i></a>
+                        Backup Retention Count
+                    </label>
+                    <input type="number" id="backup-retention" min="1" max="10" value="3"
+                        placeholder="Number of backups to keep">
+                    <span class="br-hint">Number of backup copies to keep. Older backups are automatically deleted (default: 3)</span>
+                </div>
+
+                <div class="br-field">
+                    <label>Next Scheduled Backup</label>
+                    <div id="next-backup-time" class="br-schedule-badge">
+                        <i class="fas fa-spinner fa-spin"></i> Loading...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Manual Backup -->
+        <div class="br-card">
+            <div class="br-card-header">
+                <div class="br-card-icon br-icon-green">
+                    <i class="fas fa-save"></i>
+                </div>
+                <h3>Manual Backup</h3>
+            </div>
+            <div class="br-card-body">
+                <p class="br-description">Create an immediate backup of all databases.</p>
+                <button type="button" id="create-backup-btn" class="br-btn br-btn-primary">
+                    <i class="fas fa-plus-circle"></i> Create Manual Backup
+                </button>
+
+                <div id="backup-progress" class="br-progress-wrap" style="display: none;">
+                    <div class="br-progress-track">
+                        <div class="progress-fill"></div>
+                    </div>
+                    <div class="progress-text">Creating backup...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Two-column row for Restore + Download -->
+        <div class="br-row">
+            <!-- Restore Database -->
+            <div class="br-card">
+                <div class="br-card-header">
+                    <div class="br-card-icon br-icon-amber">
+                        <i class="fas fa-undo-alt"></i>
+                    </div>
+                    <h3>Restore Database</h3>
+                </div>
+                <div class="br-card-body">
+                    <div class="br-field">
+                        <label for="restore-backup-select">
+                            <a href="https://github.com/mrjacobarussell/sniparr"
+                                class="br-info-link" target="_blank" rel="noopener"><i class="fas fa-info-circle"></i></a>
+                            Select Backup to Restore
+                        </label>
+                        <select id="restore-backup-select">
+                            <option value="">Loading available backups...</option>
+                        </select>
+                        <span class="br-hint">This will overwrite your current database</span>
+                    </div>
+
+                    <div class="br-field" id="restore-confirmation-group" style="display: none;">
+                        <label for="restore-confirmation">
+                            Type "RESTORE" to confirm
+                        </label>
+                        <input type="text" id="restore-confirmation" class="br-input-danger"
+                            placeholder="Type RESTORE to confirm">
+                        <div class="br-warning-box">
+                            <i class="fas fa-exclamation-triangle"></i>
+                            <div>
+                                <strong>Warning:</strong> This will permanently overwrite your current database.
+                                All current data will be lost.
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="restore-action-group" style="display: none;">
+                        <button type="button" id="restore-backup-btn" class="br-btn br-btn-danger" disabled>
+                            <i class="fas fa-undo-alt"></i> Restore Database
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Download Backup -->
+            <div class="br-card">
+                <div class="br-card-header">
+                    <div class="br-card-icon br-icon-purple">
+                        <i class="fas fa-download"></i>
+                    </div>
+                    <h3>Download Backup</h3>
+                </div>
+                <div class="br-card-body">
+                    <div class="br-field">
+                        <label for="download-backup-select">
+                            <a href="https://github.com/mrjacobarussell/sniparr"
+                                class="br-info-link" target="_blank" rel="noopener"><i class="fas fa-info-circle"></i></a>
+                            Select Backup to Download
+                        </label>
+                        <select id="download-backup-select">
+                            <option value="">Loading available backups...</option>
+                        </select>
+                        <span class="br-hint">Download a backup as a ZIP file</span>
+                    </div>
+
+                    <button type="button" id="download-backup-btn" class="br-btn br-btn-secondary" disabled>
+                        <i class="fas fa-file-download"></i> Download Backup
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Upload Backup -->
+        <div class="br-card">
+            <div class="br-card-header">
+                <div class="br-card-icon br-icon-teal">
+                    <i class="fas fa-upload"></i>
+                </div>
+                <h3>Upload Backup</h3>
+            </div>
+            <div class="br-card-body">
+                <div class="br-field">
+                    <label for="upload-backup-file">
+                        <a href="https://github.com/mrjacobarussell/sniparr"
+                            class="br-info-link" target="_blank" rel="noopener"><i class="fas fa-info-circle"></i></a>
+                        Select Backup File (ZIP)
+                    </label>
+                    <div class="br-file-upload">
+                        <input type="file" id="upload-backup-file" accept=".zip">
+                        <div class="br-file-label">
+                            <i class="fas fa-cloud-upload-alt"></i>
+                            <span>Choose a ZIP backup file or drag and drop</span>
+                        </div>
+                    </div>
+                    <span class="br-hint">Upload a ZIP file containing a valid Sniparr backup</span>
+                </div>
+
+                <div class="br-field" id="upload-confirmation-group" style="display: none;">
+                    <label for="upload-confirmation">
+                        Type "UPLOAD" to confirm
+                    </label>
+                    <input type="text" id="upload-confirmation" class="br-input-danger"
+                        placeholder="Type UPLOAD to confirm">
+                    <div class="br-warning-box">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <div>
+                            <strong>Warning:</strong> This will permanently overwrite your current database.
+                            All current data will be lost.
+                        </div>
+                    </div>
+                </div>
+
+                <div id="upload-action-group" style="display: none;">
+                    <button type="button" id="upload-backup-btn" class="br-btn br-btn-danger" disabled>
+                        <i class="fas fa-upload"></i> Upload and Restore Backup
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Danger Zone -->
+        <div class="br-card br-card-danger">
+            <div class="br-card-header">
+                <div class="br-card-icon br-icon-red">
+                    <i class="fas fa-skull-crossbones"></i>
+                </div>
+                <h3>Danger Zone</h3>
+            </div>
+            <div class="br-card-body">
+                <p class="br-danger-description">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    Permanently delete your current database. Use this for testing or a complete reset only.
+                    This action <strong>cannot be undone</strong>.
+                </p>
+
+                <div class="br-field">
+                    <label for="delete-confirmation">
+                        Type "sniparr" to enable deletion
+                    </label>
+                    <input type="text" id="delete-confirmation" class="br-input-danger"
+                        placeholder="Type sniparr to confirm">
+                </div>
+
+                <div id="delete-action-group" style="display: none;">
+                    <button type="button" id="delete-database-btn" class="br-btn br-btn-danger-solid" disabled>
+                        <i class="fas fa-trash-alt"></i> Delete Database
+                    </button>
+                    <div class="br-warning-box br-warning-critical">
+                        <i class="fas fa-skull-crossbones"></i>
+                        <div>
+                            <strong>FINAL WARNING:</strong> Your entire Sniparr database will be permanently deleted.
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Available Backups List -->
+        <div class="br-card">
+            <div class="br-card-header">
+                <div class="br-card-icon br-icon-slate">
+                    <i class="fas fa-th-list"></i>
+                </div>
+                <h3>Available Backups</h3>
+            </div>
+            <div class="br-card-body">
+                <div id="backup-list-container">
+                    <div class="br-list-empty">
+                        <i class="fas fa-spinner fa-spin"></i> Loading backup list...
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        </div>
+    </div>
+</section>
+
+<link rel="stylesheet" href="./static/css/backup-restore.css">

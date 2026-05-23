@@ -1,0 +1,127 @@
+/* ==========================================================================
+   Sniparr Base Styles & Reset
+   ========================================================================== */
+
+/* Inter font — loaded from Google Fonts for modern typography */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+/* Base Styles */
+body, html {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    height: 100%;
+    width: 100%;
+    overflow: auto !important;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    line-height: 1.6;
+    transition: background-color var(--transition-base), color var(--transition-base);
+    height: 100vh;
+}
+
+/* Global scrollbar management */
+.content-section {
+    overflow: auto !important;
+}
+
+/* Scrollbar styling — indigo-tinted */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(15, 23, 42, 0.5);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.2);
+    border-radius: 4px;
+    transition: background-color var(--transition-base);
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.35);
+}
+
+/* Allow scrolling on main elements */
+body, html, .main-content, .section-wrapper {
+    overflow: auto !important;
+    scrollbar-width: thin !important;
+    scrollbar-color: rgba(99, 102, 241, 0.2) transparent;
+}
+
+/* Only allow scrollbars on specific elements */
+.single-scroll-container {
+    scrollbar-width: thin !important;
+    overflow-y: auto !important;
+}
+
+/* Hide scrollbars on all table elements */
+table, tbody, tr, td, th {
+    overflow: visible !important;
+}
+
+/* Hide all WebKit scrollbars except on allowed containers */
+body::-webkit-scrollbar,
+html::-webkit-scrollbar,
+.content-section::-webkit-scrollbar,
+.main-content::-webkit-scrollbar,
+.section-wrapper::-webkit-scrollbar {
+    width: 8px !important;
+    height: 8px !important;
+    display: block !important;
+}
+
+table::-webkit-scrollbar,
+tr::-webkit-scrollbar,
+tbody::-webkit-scrollbar,
+th::-webkit-scrollbar,
+td::-webkit-scrollbar {
+    width: 0 !important;
+    height: 0 !important;
+    display: none !important;
+}
+
+a {
+    text-decoration: none;
+    color: var(--accent-color);
+    transition: color var(--transition-fast);
+}
+
+a:hover {
+    color: var(--accent-hover);
+}
+
+button {
+    cursor: pointer;
+    font-family: inherit;
+}
+
+/* Layout Structure */
+.app-container {
+    display: flex;
+    height: 100vh;
+    overflow: auto;
+}
+
+/* Main Content */
+.main-content {
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: auto;
+}

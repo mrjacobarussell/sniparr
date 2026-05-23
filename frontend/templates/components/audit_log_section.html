@@ -1,0 +1,119 @@
+<div class="audit-log-section" id="auditLogSection">
+    <div class="section-header">
+        <h2><i class="fas fa-shield-alt"></i> Security Audit Log</h2>
+        <div class="audit-controls">
+            <select id="auditEventFilter" class="audit-filter-select">
+                <option value="">All events</option>
+                <option value="login_success">Login success</option>
+                <option value="login_failure">Login failure</option>
+                <option value="login_rate_limited">Rate limited</option>
+                <option value="account_locked">Account locked</option>
+                <option value="account_unlocked">Account unlocked</option>
+                <option value="logout">Logout</option>
+                <option value="password_changed">Password changed</option>
+                <option value="settings_changed">Settings changed</option>
+                <option value="2fa_enabled">2FA enabled</option>
+                <option value="2fa_disabled">2FA disabled</option>
+            </select>
+            <button class="btn-icon" id="auditRefreshBtn" title="Refresh">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+        </div>
+    </div>
+
+    <div class="audit-table-wrap">
+        <table class="audit-table">
+            <thead>
+                <tr>
+                    <th>Time (UTC)</th>
+                    <th>Event</th>
+                    <th>User</th>
+                    <th>IP</th>
+                    <th>Detail</th>
+                </tr>
+            </thead>
+            <tbody id="auditTableBody">
+                <tr><td colspan="5" class="audit-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <p class="audit-retention-note">Events older than 90 days are purged automatically.</p>
+</div>
+
+<script nonce="{{ g.csp_nonce }}">
+(function() {
+    var tbody   = document.getElementById('auditTableBody');
+    var filter  = document.getElementById('auditEventFilter');
+    var refresh = document.getElementById('auditRefreshBtn');
+    if (!tbody) return;
+
+    var EVENT_CLASSES = {
+        login_success:      'audit-ok',
+        login_failure:      'audit-warn',
+        login_rate_limited: 'audit-warn',
+        account_locked:     'audit-danger',
+        account_unlocked:   'audit-ok',
+        logout:             'audit-neutral',
+        password_changed:   'audit-neutral',
+        settings_changed:   'audit-neutral',
+        '2fa_enabled':      'audit-ok',
+        '2fa_disabled':     'audit-warn',
+    };
+
+    var EVENT_ICONS = {
+        login_success:      'fa-check-circle',
+        login_failure:      'fa-times-circle',
+        login_rate_limited: 'fa-ban',
+        account_locked:     'fa-lock',
+        account_unlocked:   'fa-lock-open',
+        logout:             'fa-sign-out-alt',
+        password_changed:   'fa-key',
+        settings_changed:   'fa-cog',
+        '2fa_enabled':      'fa-shield-alt',
+        '2fa_disabled':     'fa-shield-alt',
+    };
+
+    function load() {
+        tbody.innerHTML = '<tr><td colspan="5" class="audit-loading"><i class="fas fa-spinner fa-spin"></i> Loading…</td></tr>';
+        var url = './api/security/audit?limit=500';
+        var ev = filter ? filter.value : '';
+        if (ev) url += '&event=' + encodeURIComponent(ev);
+
+        fetch(url)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success || !data.entries.length) {
+                    tbody.innerHTML = '<tr><td colspan="5" class="audit-empty">No events recorded yet.</td></tr>';
+                    return;
+                }
+                tbody.innerHTML = data.entries.map(function(e) {
+                    var cls  = EVENT_CLASSES[e.event] || 'audit-neutral';
+                    var icon = EVENT_ICONS[e.event]   || 'fa-circle';
+                    return '<tr class="' + cls + '">' +
+                        '<td class="audit-ts">'     + escHtml(e.ts_human)    + '</td>' +
+                        '<td class="audit-event"><i class="fas ' + icon + '"></i> ' + escHtml(e.event) + '</td>' +
+                        '<td class="audit-user">'   + escHtml(e.username || '—') + '</td>' +
+                        '<td class="audit-ip">'     + escHtml(e.ip_address || '—') + '</td>' +
+                        '<td class="audit-detail">' + escHtml(e.detail || '') + '</td>' +
+                    '</tr>';
+                }).join('');
+            })
+            .catch(function() {
+                tbody.innerHTML = '<tr><td colspan="5" class="audit-empty">Failed to load audit log.</td></tr>';
+            });
+    }
+
+    function escHtml(s) {
+        return String(s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;');
+    }
+
+    if (filter)  filter.addEventListener('change', load);
+    if (refresh) refresh.addEventListener('click', load);
+
+    load();
+})();
+</script>
