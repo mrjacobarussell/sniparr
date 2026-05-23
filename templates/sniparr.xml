@@ -5,6 +5,7 @@
   <Registry>https://hub.docker.com/r/mrjacobarussell/sniparr</Registry>
   <Network>bridge</Network>
   <MyIP/>
+  <NetworkingType>port</NetworkingType>
   <Shell>bash</Shell>
   <Privileged>false</Privileged>
   <Support>https://github.com/mrjacobarussell/sniparr/issues</Support>

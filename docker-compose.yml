@@ -2,10 +2,11 @@ services:
   sniparr:
     image: mrjacobarussell/sniparr:latest
     container_name: sniparr
+    network_mode: bridge
     ports:
       - "9705:9705"
     volumes:
-      - sniparr-config:/config
+      - /mnt/user/appdata/sniparr:/config
     environment:
       - TZ=${TZ:-UTC}
       - BASE_URL=${BASE_URL:-}
@@ -24,7 +25,3 @@ services:
       timeout: 10s
       start_period: 40s
       retries: 3
-
-volumes:
-  sniparr-config:
-    name: sniparr-config
