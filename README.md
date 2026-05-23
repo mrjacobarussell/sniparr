@@ -28,8 +28,6 @@ Your *arr apps (Sonarr, Radarr, etc.) grab new releases as they appear on RSS fe
 
 **Indexer monitoring** — Live stats, search history, and per-indexer health for your Prowlarr setup, all in one dashboard.
 
-**Media requests (Requestarr)** — Built-in request management so users can submit movies and TV shows for your library.
-
 ---
 
 ## How It's Different from Huntarr
@@ -43,7 +41,7 @@ Sniparr started as a personal fork of Huntarr Revisited. It diverged significant
 | **Auth options** | Login only | Login, local network bypass, reverse proxy header passthrough |
 | **Swaparr** | Strike-based removal | Strike-based + quality-rejection detection + import-failure handling |
 | **Prowlarr** | Stats only | Stats, per-indexer history, health indicators |
-| **Requests** | None | Requestarr built in |
+| **Requests** | None | Use Overseerr/Jellyseerr |
 
 The philosophy difference: Sniparr does one thing — tell your arr apps about content they're missing. It doesn't try to replace them. Huntarr added torrent and NZB client management, custom download pipelines, and calendar views for downloads. Those features overlap heavily with what Sonarr and Radarr already do natively, so Sniparr removed them to stay focused.
 
