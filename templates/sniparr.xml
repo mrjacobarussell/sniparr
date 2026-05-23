@@ -9,7 +9,7 @@
   <Privileged>false</Privileged>
   <Support>https://github.com/mrjacobarussell/sniparr/issues</Support>
   <Project>https://github.com/mrjacobarussell/sniparr</Project>
-  <Overview>Sniparr — Automated missing-media hunter and stuck-download manager for your *arr stack (Sonarr, Radarr, Lidarr, Readarr, Whisparr). Includes Swaparr for stuck download removal, quality-upgrade hunting, and a hardened security layer with CSRF protection, signed sessions, and SSRF-guarded instance URLs. Ground-up project by MrJacobarussell.</Overview>
+  <Overview>Sniparr — Automated missing-media hunting and stuck-download clearing for your *arr stack. Scans Sonarr, Radarr, Lidarr, Readarr, Whisparr, and more for missing content and quality upgrades, then triggers searches in controlled batches. Swaparr removes stalled or import-rejected downloads automatically. Includes Prowlarr indexer monitoring, 2FA, CSRF protection, signed sessions, local network bypass, and reverse-proxy SSO auth.</Overview>
   <Category>MediaApp: Video MediaApp: Music MediaApp: Books Tools:</Category>
   <WebUI>http://[IP]:[PORT:9705]/</WebUI>
   <TemplateURL>https://raw.githubusercontent.com/mrjacobarussell/sniparr/main/templates/sniparr.xml</TemplateURL>
@@ -51,6 +51,10 @@
   <Config Name="TZ" Target="TZ" Default="America/New_York" Mode=""
     Description="Timezone string (e.g. America/New_York, Europe/London). Used for log timestamps and scheduled search windows."
     Type="Variable" Display="always" Required="false" Mask="false">America/New_York</Config>
+
+  <Config Name="Frame Ancestors" Target="FRAME_ANCESTORS" Default="*" Mode=""
+    Description="CSP frame-ancestors value. Default '*' allows Sniparr to open from any Unraid host. Set to 'self' to restrict to same-origin only."
+    Type="Variable" Display="advanced" Required="false" Mask="false">*</Config>
 
   <!-- ── Reverse-proxy / SSO auth (optional) ──────────────────────── -->
 
