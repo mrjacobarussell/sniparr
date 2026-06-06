@@ -22,10 +22,6 @@
     var editingId = null;
     var editingProvider = null;
 
-    // Movie Snipe and TV Snipe instances (loaded from API)
-    var movieHuntInstances = [];
-    var tvHuntInstances = [];
-
     // App settings cache (for instance names)
     var appSettingsCache = {};
 
@@ -105,25 +101,17 @@
     }
 
     function loadAppData() {
-        return Promise.all([
-            SniparrUtils.fetchWithTimeout('./api/settings').then(function (r) { return r.json(); }).catch(function () { return {}; }),
-            SniparrUtils.fetchWithTimeout('./api/movie-snipe/instances').then(function (r) { return r.json(); }).catch(function () { return { instances: [] }; }),
-            SniparrUtils.fetchWithTimeout('./api/tv-snipe/instances').then(function (r) { return r.json(); }).catch(function () { return { instances: [] }; })
-        ]).then(function (results) {
-            var settings = results[0];
-            var mhData = results[1];
-            var thData = results[2];
-
-            movieHuntInstances = Array.isArray(mhData.instances) ? mhData.instances : [];
-            tvHuntInstances = Array.isArray(thData.instances) ? thData.instances : [];
-
-            var appTypes = ['sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros'];
-            appTypes.forEach(function (at) {
-                if (settings[at] && Array.isArray(settings[at].instances)) {
-                    appSettingsCache[at] = settings[at].instances;
-                }
+        return SniparrUtils.fetchWithTimeout('./api/settings')
+            .then(function (r) { return r.json(); })
+            .catch(function () { return {}; })
+            .then(function (settings) {
+                var appTypes = ['sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros'];
+                appTypes.forEach(function (at) {
+                    if (settings[at] && Array.isArray(settings[at].instances)) {
+                        appSettingsCache[at] = settings[at].instances;
+                    }
+                });
             });
-        });
     }
 
     function loadConnections() {
@@ -325,22 +313,6 @@
     }
 
     function resolveInstanceName(appScope, instanceId) {
-        if (appScope === 'movie_hunt') {
-            for (var i = 0; i < movieHuntInstances.length; i++) {
-                if (String(movieHuntInstances[i].id) === String(instanceId)) {
-                    return movieHuntInstances[i].name || 'Instance ' + instanceId;
-                }
-            }
-            return 'Instance ' + instanceId;
-        }
-        if (appScope === 'tv_hunt') {
-            for (var t = 0; t < tvHuntInstances.length; t++) {
-                if (String(tvHuntInstances[t].id) === String(instanceId)) {
-                    return tvHuntInstances[t].name || 'Instance ' + instanceId;
-                }
-            }
-            return 'Instance ' + instanceId;
-        }
         var instances = appSettingsCache[appScope] || [];
         for (var j = 0; j < instances.length; j++) {
             var inst = instances[j];
@@ -507,15 +479,7 @@
 
         var instances = [];
 
-        if (appKey === 'movie_hunt') {
-            instances = movieHuntInstances.map(function (inst) {
-                return { id: String(inst.id), name: inst.name || 'Instance ' + inst.id };
-            });
-        } else if (appKey === 'tv_hunt') {
-            instances = tvHuntInstances.map(function (inst) {
-                return { id: String(inst.id), name: inst.name || 'Instance ' + inst.id };
-            });
-        } else {
+        {
             var appInsts = appSettingsCache[appKey] || [];
             instances = appInsts.map(function (inst, idx) {
                 return {

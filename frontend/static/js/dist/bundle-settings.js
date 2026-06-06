@@ -1440,6 +1440,7 @@ document.head.appendChild(styleEl);
             state_management_mode: instance.state_management_mode || 'custom',
             state_management_hours: instance.state_management_hours || 72,
             swaparr_enabled: instance.swaparr_enabled === true,
+            swaparr_remove_completed_stalled: instance.swaparr_remove_completed_stalled !== false,
             // Additional Options (per-instance)
             monitored_only: instance.monitored_only !== false,
             skip_future_episodes: instance.skip_future_episodes !== false,
@@ -1974,6 +1975,16 @@ document.head.appendChild(styleEl);
                         </div>
                         <p class="editor-help-text">Enable Swaparr to monitor and remove stalled downloads for this instance</p>
                     </div>
+                    <div class="editor-field-group">
+                        <div class="editor-setting-item flex-row">
+                            <label>Remove Completed (100%) Stalled</label>
+                            <label class="toggle-switch">
+                                <input type="checkbox" id="editor-swaparr-remove-completed-stalled" ${safeInstance.swaparr_remove_completed_stalled ? 'checked' : ''}>
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </div>
+                        <p class="editor-help-text">When enabled, Swaparr can remove downloads that are 100% complete but stuck in the queue after max strikes. Disable if this instance has downloads that need manual import review.</p>
+                    </div>
                     ` : `
                     <div class="editor-field-group">
                         <p style="color: #94a3b8; font-size: 0.9rem; margin: 0;">Enable Swaparr in Settings to access additional monitoring features for this instance.</p>
@@ -2046,6 +2057,11 @@ document.head.appendChild(styleEl);
         const swaparrInput = document.getElementById('editor-swaparr');
         if (swaparrInput) {
             newData.swaparr_enabled = swaparrInput.checked;
+        }
+
+        const swaparrRemoveCompletedStalledInput = document.getElementById('editor-swaparr-remove-completed-stalled');
+        if (swaparrRemoveCompletedStalledInput) {
+            newData.swaparr_remove_completed_stalled = swaparrRemoveCompletedStalledInput.checked;
         }
   
         if (appType === 'sonarr') {
@@ -3276,6 +3292,22 @@ document.head.appendChild(styleEl);
                 </div>
                 
                 <div class="setting-item">
+                    <label for="swaparr_strike_queued">
+                        <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparr" class="info-icon" title="Allow queued downloads to accumulate strikes" target="_blank" rel="noopener">
+                            <i class="fas fa-info-circle"></i>
+                        </a>
+                        Strike Queued Downloads:
+                    </label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="swaparr_strike_queued" ${
+                          settings.strike_queued === true ? "checked" : ""
+                        }>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <p class="setting-help">When enabled, downloads with status "queued" can accumulate strikes after a 1-hour grace period. When disabled (default), queued downloads are always skipped — matching upstream Swaparr behavior (STRIKE_QUEUED=false)</p>
+                </div>
+
+                <div class="setting-item">
                     <label for="swaparr_sleep_duration">
                         <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparrsleep-duration" class="info-icon" title="Time between Swaparr cycles" target="_blank" rel="noopener">
                             <i class="fas fa-info-circle"></i>
@@ -3296,11 +3328,61 @@ document.head.appendChild(styleEl);
             </div>
             
             <div class="settings-group">
+                <h3>Obfuscated Torrent Detection</h3>
+                <p class="setting-help" style="margin-bottom: 20px; color: #9ca3af;">
+                    Some private trackers rename torrents to their info-hash to avoid DMCA detection. These show up in Deluge with the same value for both Name and Hash. Sniparr can detect these and take action.
+                </p>
+
+                <div class="setting-item">
+                    <label for="swaparr_obfuscated_detection">
+                        <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparr" class="info-icon" title="Detect hash-named (obfuscated) torrents" target="_blank" rel="noopener">
+                            <i class="fas fa-info-circle"></i>
+                        </a>
+                        Detect Obfuscated Torrents:
+                    </label>
+                    <label class="toggle-switch">
+                        <input type="checkbox" id="swaparr_obfuscated_detection" ${
+                          settings.obfuscated_torrent_detection === true ? "checked" : ""
+                        }>
+                        <span class="toggle-slider"></span>
+                    </label>
+                    <p class="setting-help">Detect downloads whose name is a raw hex hash (MD5 / SHA1 / SHA256) — a common private tracker obfuscation technique</p>
+                </div>
+
+                <div class="setting-item">
+                    <label for="swaparr_obfuscated_action">
+                        <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparr" class="info-icon" title="Action to take on obfuscated torrents" target="_blank" rel="noopener">
+                            <i class="fas fa-info-circle"></i>
+                        </a>
+                        Action on Obfuscated Torrents:
+                    </label>
+                    <select id="swaparr_obfuscated_action" style="
+                        background: #1f2937;
+                        color: #f3f4f6;
+                        border: 1px solid #374151;
+                        border-radius: 6px;
+                        padding: 6px 10px;
+                        font-size: 14px;
+                        min-width: 200px;
+                    ">
+                        <option value="ignore" ${(settings.obfuscated_torrent_action || "ignore") === "ignore" ? "selected" : ""}>Do Nothing (Skip / Ignore)</option>
+                        <option value="notify"  ${(settings.obfuscated_torrent_action || "ignore") === "notify"  ? "selected" : ""}>Send Push Notification</option>
+                        <option value="delete"  ${(settings.obfuscated_torrent_action || "ignore") === "delete"  ? "selected" : ""}>Delete the Download</option>
+                    </select>
+                    <p class="setting-help">
+                        <strong>Do Nothing</strong> — log and skip; normal strike logic still runs.<br>
+                        <strong>Notify</strong> — send a push notification via your configured notification channels then skip.<br>
+                        <strong>Delete</strong> — immediately remove from the arr queue and download client (no strikes required).
+                    </p>
+                </div>
+            </div>
+
+            <div class="settings-group">
                 <h3>Security Features</h3>
                 <p class="setting-help" style="margin-bottom: 20px; color: #9ca3af;">
                     Advanced security features to protect your system from malicious downloads and suspicious content by analyzing download names and titles. Detection is based on filename patterns, not file contents.
                 </p>
-                
+
                 <div class="setting-item">
                     <label for="swaparr_malicious_detection">
                         <a href="https://plexguide.github.io/Sniparr.io/apps/index.html#swaparrmalicious-file-detection" class="info-icon" title="Enable malicious file detection" target="_blank" rel="noopener">
@@ -3752,8 +3834,17 @@ document.head.appendChild(styleEl);
             const removeCompletedStalled = document.getElementById("swaparr_remove_completed_stalled");
             if (removeCompletedStalled) settings.remove_completed_stalled = removeCompletedStalled.checked;
 
+            const strikeQueued = document.getElementById("swaparr_strike_queued");
+            if (strikeQueued) settings.strike_queued = strikeQueued.checked;
+
             const sleepDuration = document.getElementById("swaparr_sleep_duration");
             if (sleepDuration) settings.sleep_duration = parseInt(sleepDuration.value) * 60;
+
+            const obfuscatedDetection = document.getElementById("swaparr_obfuscated_detection");
+            if (obfuscatedDetection) settings.obfuscated_torrent_detection = obfuscatedDetection.checked;
+
+            const obfuscatedAction = document.getElementById("swaparr_obfuscated_action");
+            if (obfuscatedAction) settings.obfuscated_torrent_action = obfuscatedAction.value;
 
             const malicious = document.getElementById("swaparr_malicious_detection");
             if (malicious) settings.malicious_file_detection = malicious.checked;
@@ -10588,10 +10679,6 @@ document.head.appendChild(styleEl);
     var editingId = null;
     var editingProvider = null;
 
-    // Movie Snipe and TV Snipe instances (loaded from API)
-    var movieHuntInstances = [];
-    var tvHuntInstances = [];
-
     // App settings cache (for instance names)
     var appSettingsCache = {};
 
@@ -10671,25 +10758,17 @@ document.head.appendChild(styleEl);
     }
 
     function loadAppData() {
-        return Promise.all([
-            SniparrUtils.fetchWithTimeout('./api/settings').then(function (r) { return r.json(); }).catch(function () { return {}; }),
-            SniparrUtils.fetchWithTimeout('./api/movie-snipe/instances').then(function (r) { return r.json(); }).catch(function () { return { instances: [] }; }),
-            SniparrUtils.fetchWithTimeout('./api/tv-snipe/instances').then(function (r) { return r.json(); }).catch(function () { return { instances: [] }; })
-        ]).then(function (results) {
-            var settings = results[0];
-            var mhData = results[1];
-            var thData = results[2];
-
-            movieHuntInstances = Array.isArray(mhData.instances) ? mhData.instances : [];
-            tvHuntInstances = Array.isArray(thData.instances) ? thData.instances : [];
-
-            var appTypes = ['sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros'];
-            appTypes.forEach(function (at) {
-                if (settings[at] && Array.isArray(settings[at].instances)) {
-                    appSettingsCache[at] = settings[at].instances;
-                }
+        return SniparrUtils.fetchWithTimeout('./api/settings')
+            .then(function (r) { return r.json(); })
+            .catch(function () { return {}; })
+            .then(function (settings) {
+                var appTypes = ['sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros'];
+                appTypes.forEach(function (at) {
+                    if (settings[at] && Array.isArray(settings[at].instances)) {
+                        appSettingsCache[at] = settings[at].instances;
+                    }
+                });
             });
-        });
     }
 
     function loadConnections() {
@@ -10891,22 +10970,6 @@ document.head.appendChild(styleEl);
     }
 
     function resolveInstanceName(appScope, instanceId) {
-        if (appScope === 'movie_hunt') {
-            for (var i = 0; i < movieHuntInstances.length; i++) {
-                if (String(movieHuntInstances[i].id) === String(instanceId)) {
-                    return movieHuntInstances[i].name || 'Instance ' + instanceId;
-                }
-            }
-            return 'Instance ' + instanceId;
-        }
-        if (appScope === 'tv_hunt') {
-            for (var t = 0; t < tvHuntInstances.length; t++) {
-                if (String(tvHuntInstances[t].id) === String(instanceId)) {
-                    return tvHuntInstances[t].name || 'Instance ' + instanceId;
-                }
-            }
-            return 'Instance ' + instanceId;
-        }
         var instances = appSettingsCache[appScope] || [];
         for (var j = 0; j < instances.length; j++) {
             var inst = instances[j];
@@ -11073,15 +11136,7 @@ document.head.appendChild(styleEl);
 
         var instances = [];
 
-        if (appKey === 'movie_hunt') {
-            instances = movieHuntInstances.map(function (inst) {
-                return { id: String(inst.id), name: inst.name || 'Instance ' + inst.id };
-            });
-        } else if (appKey === 'tv_hunt') {
-            instances = tvHuntInstances.map(function (inst) {
-                return { id: String(inst.id), name: inst.name || 'Instance ' + inst.id };
-            });
-        } else {
+        {
             var appInsts = appSettingsCache[appKey] || [];
             instances = appInsts.map(function (inst, idx) {
                 return {

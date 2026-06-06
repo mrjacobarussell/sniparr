@@ -71,8 +71,6 @@
                         <label for="scheduleAppType">App</label>
                         <select id="scheduleAppType">
                             <option value="global">All Apps (Global)</option>
-                            <option value="movie_hunt">Movie Snipe</option>
-                            <option value="tv_hunt">TV Snipe</option>
                             <option value="sonarr">Sonarr</option>
                             <option value="radarr">Radarr</option>
                             <option value="lidarr">Lidarr</option>
@@ -204,37 +202,7 @@
             allOpt.textContent = 'All Instances';
             instanceSelect.appendChild(allOpt);
 
-            // Movie Snipe: instances come from a dedicated API, not settings cache
-            if (appType === 'movie_hunt') {
-                const cached = window._movieHuntInstances;
-                if (cached && Array.isArray(cached)) {
-                    cached.forEach(function(inst) {
-                        const opt = document.createElement('option');
-                        opt.value = String(inst.id);
-                        opt.textContent = inst.name || ('Instance ' + inst.id);
-                        instanceSelect.appendChild(opt);
-                    });
-                }
-                updateHiddenApp();
-                return;
-            }
-
-            // TV Snipe: instances come from a dedicated API, not settings cache
-            if (appType === 'tv_hunt') {
-                const cached = window._tvHuntInstances;
-                if (cached && Array.isArray(cached)) {
-                    cached.forEach(function(inst) {
-                        const opt = document.createElement('option');
-                        opt.value = String(inst.id);
-                        opt.textContent = inst.name || ('Instance ' + inst.id);
-                        instanceSelect.appendChild(opt);
-                    });
-                }
-                updateHiddenApp();
-                return;
-            }
-
-            // Other apps: get instances from settings cache
+            // Get instances from settings cache
             const settings = (window.sniparrUI && window.sniparrUI.originalSettings) ? window.sniparrUI.originalSettings : {};
             const appSettings = settings[appType] || {};
             const instances = Array.isArray(appSettings.instances) ? appSettings.instances : [];

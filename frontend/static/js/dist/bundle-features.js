@@ -650,13 +650,6 @@ window.LogsModule = {
             }
         });
         // Ensure selection is valid for current context
-        if (context === 'media-hunt') {
-            const valid = ['media_hunt', 'movie_hunt', 'tv_hunt'];
-            if (valid.indexOf(logAppSelect.value) === -1) {
-                logAppSelect.value = 'media_hunt';
-                this.currentLogApp = 'media_hunt';
-            }
-        }
     },
 
     // Show or hide DEBUG option in level dropdown based on enable_debug_logs setting (GitHub #756)
@@ -918,9 +911,6 @@ window.LogsModule = {
         if (app === 'all') displayName = 'Everywhere';
         else if (app === 'whisparr') displayName = 'Whisparr V2';
         else if (app === 'eros') displayName = 'Whisparr V3';
-        else if (app === 'media_hunt') displayName = 'Media Hunt (All)';
-        else if (app === 'movie_hunt') displayName = 'Movie Snipe';
-        else if (app === 'tv_hunt') displayName = 'TV Snipe';
 
         if (this.elements.currentLogApp) this.elements.currentLogApp.textContent = displayName;
         
@@ -948,9 +938,6 @@ window.LogsModule = {
         if (app === 'all') displayName = 'Everywhere';
         else if (app === 'whisparr') displayName = 'Whisparr V2';
         else if (app === 'eros') displayName = 'Whisparr V3';
-        else if (app === 'media_hunt') displayName = 'Media Hunt (All)';
-        else if (app === 'movie_hunt') displayName = 'Movie Snipe';
-        else if (app === 'tv_hunt') displayName = 'TV Snipe';
 
         if (this.elements.currentLogApp) this.elements.currentLogApp.textContent = displayName;
         
@@ -1200,7 +1187,7 @@ window.LogsModule = {
                 }
                 
                 // Determine app source for display: friendly names for hunt apps; "APP - INSTANCE" for *arr (e.g. sonarr-test -> SONARR - test)
-                const appDisplayNames = { movie_hunt: 'Movie Snipe', tv_hunt: 'TV Snipe', swaparr: 'Swaparr', whisparr: 'Whisparr V2', eros: 'Whisparr V3' };
+                const appDisplayNames = { swaparr: 'Swaparr', whisparr: 'Whisparr V2', eros: 'Whisparr V3' };
                 let appSource = 'SYSTEM';
                 if (logAppType && logAppType !== 'system') {
                     if (appDisplayNames[logAppType]) {
@@ -1297,7 +1284,7 @@ window.LogsModule = {
         // Get current app filter - use logAppSelect when available, fallback to currentLogApp
         const logAppSelect = document.getElementById('logAppSelect');
         const currentApp = logAppSelect ? logAppSelect.value : (this.currentLogApp || 'all');
-        const appDisplayNames = { all: 'Everywhere', media_hunt: 'Media Hunt (All)', movie_hunt: 'Movie Snipe', tv_hunt: 'TV Snipe', swaparr: 'Swaparr', sonarr: 'Sonarr', radarr: 'Radarr', lidarr: 'Lidarr', readarr: 'Readarr', whisparr: 'Whisparr V2', eros: 'Whisparr V3', system: 'System' };
+        const appDisplayNames = { all: 'Everywhere', swaparr: 'Swaparr', sonarr: 'Sonarr', radarr: 'Radarr', lidarr: 'Lidarr', readarr: 'Readarr', whisparr: 'Whisparr V2', eros: 'Whisparr V3', system: 'System' };
         const appLabel = appDisplayNames[currentApp] ? appDisplayNames[currentApp] + ' logs' : currentApp + ' logs';
         const msg = `Are you sure you want to clear ${appLabel}? This action cannot be undone.`;
         const self = this;
@@ -3267,9 +3254,7 @@ window.sniparrSchedules = window.sniparrSchedules || {
     lidarr: [],
     readarr: [],
     whisparr: [],
-    eros: [],
-    movie_hunt: [],
-    tv_hunt: []
+    eros: []
 };
 
 (function() {
@@ -3412,34 +3397,6 @@ window.sniparrSchedules = window.sniparrSchedules || {
         allOpt.value = 'all';
         allOpt.textContent = 'All Instances';
         instanceSelect.appendChild(allOpt);
-
-        // Movie Snipe uses a dedicated instance list (numeric IDs from DB)
-        if (appType === 'movie_hunt') {
-            var mhInstances = window._movieHuntInstances || [];
-            mhInstances.forEach(function(inst) {
-                if (!inst || typeof inst !== 'object') return;
-                var opt = document.createElement('option');
-                opt.value = String(inst.id);
-                opt.textContent = inst.name || ('Instance ' + inst.id);
-                instanceSelect.appendChild(opt);
-            });
-            updateHiddenApp();
-            return;
-        }
-
-        // TV Snipe uses a dedicated instance list (numeric IDs from DB)
-        if (appType === 'tv_hunt') {
-            var thInstances = window._tvHuntInstances || [];
-            thInstances.forEach(function(inst) {
-                if (!inst || typeof inst !== 'object') return;
-                var opt = document.createElement('option');
-                opt.value = String(inst.id);
-                opt.textContent = inst.name || ('Instance ' + inst.id);
-                instanceSelect.appendChild(opt);
-            });
-            updateHiddenApp();
-            return;
-        }
 
         // Standard apps: get instances from settings cache
         const settings = (window.sniparrUI && window.sniparrUI.originalSettings) ? window.sniparrUI.originalSettings : {};
@@ -3731,8 +3688,8 @@ window.sniparrSchedules = window.sniparrSchedules || {
             base = parts[0];
             instanceId = parts[1];
         }
-        // Legacy format: app-id (but NOT movie_hunt/tv_hunt which use underscores)
-        else if (appValue.indexOf('-') > 0 && appValue.indexOf('movie_hunt') !== 0 && appValue.indexOf('tv_hunt') !== 0) {
+        // Legacy format: app-id
+        else if (appValue.indexOf('-') > 0) {
             var dashParts = appValue.split('-', 2);
             base = dashParts[0];
             instanceId = dashParts[1];
@@ -3743,28 +3700,6 @@ window.sniparrSchedules = window.sniparrSchedules || {
         var label = formatAppLabel(base);
 
         if (instanceId === 'all') return 'All ' + label + ' Instances';
-
-        // Movie Snipe: resolve from dedicated instance cache
-        if (base === 'movie_hunt') {
-            var mhInstances = window._movieHuntInstances || [];
-            for (var m = 0; m < mhInstances.length; m++) {
-                if (String(mhInstances[m].id) === instanceId) {
-                    return label + ' — ' + (mhInstances[m].name || 'Instance ' + mhInstances[m].id);
-                }
-            }
-            return label + ' — Instance ' + instanceId;
-        }
-
-        // TV Snipe: resolve from dedicated instance cache
-        if (base === 'tv_hunt') {
-            var thInstances = window._tvHuntInstances || [];
-            for (var t = 0; t < thInstances.length; t++) {
-                if (String(thInstances[t].id) === instanceId) {
-                    return label + ' — ' + (thInstances[t].name || 'Instance ' + thInstances[t].id);
-                }
-            }
-            return label + ' — Instance ' + instanceId;
-        }
 
         // Standard apps: try to resolve instance name from settings
         var settings = (window.sniparrUI && window.sniparrUI.originalSettings) ? window.sniparrUI.originalSettings : {};
@@ -3789,8 +3724,6 @@ window.sniparrSchedules = window.sniparrSchedules || {
     }
 
     function formatAppLabel(appName) {
-        if (appName === 'movie_hunt') return 'Movie Snipe';
-        if (appName === 'tv_hunt') return 'TV Snipe';
         return capitalizeFirst(appName);
     }
 

@@ -261,11 +261,9 @@ window.SniparrStats = {
         // Build a flat list of all cards to render: [{app, meta, inst}, ...]
         var allCards = [];
         var ui = window.sniparrUI || {};
-        var mediaHuntApps = { movie_hunt: true, tv_hunt: true };
         var thirdPartyApps = { sonarr: true, radarr: true, lidarr: true, readarr: true, whisparr: true, eros: true };
         groupOrder.forEach(function(app) {
             if (!stats[app]) return;
-            if (mediaHuntApps[app] && ui._enableMediaHunt === false) return;
             if (thirdPartyApps[app] && ui._enableThirdPartyApps === false) return;
             var hasInstances = stats[app].instances && stats[app].instances.length > 0;
             var isConfigured = ui.configuredApps && ui.configuredApps[app];
@@ -385,16 +383,12 @@ window.SniparrStats = {
             '</div>' +
             '<div class="stats-numbers">' +
                 '<div class="stat-box">' +
-                    (app === 'movie_hunt' || app === 'tv_hunt'
-                        ? '<span class="stat-number-found-wrap"><span class="stat-number stat-found">0</span> / <span class="stat-number">0</span></span>'
-                        : '<span class="stat-number">0</span>') +
-                    '<span class="stat-label">' + (app === 'movie_hunt' || app === 'tv_hunt' ? 'Found / Searched' : 'Searches Triggered') + '</span>' +
+                    '<span class="stat-number">0</span>' +
+                    '<span class="stat-label">Searches Triggered</span>' +
                 '</div>' +
                 '<div class="stat-box">' +
-                    (app === 'movie_hunt' || app === 'tv_hunt'
-                        ? '<span class="stat-number-found-wrap"><span class="stat-number stat-found">0</span> / <span class="stat-number">0</span></span>'
-                        : '<span class="stat-number">0</span>') +
-                    '<span class="stat-label">' + (app === 'movie_hunt' || app === 'tv_hunt' ? 'Found / Upgrades' : 'Upgrades Triggered') + '</span>' +
+                    '<span class="stat-number">0</span>' +
+                    '<span class="stat-label">Upgrades Triggered</span>' +
                 '</div>' +
             '</div>' +
             '<div class="reset-button-container">' +
@@ -443,45 +437,14 @@ window.SniparrStats = {
             }
         }
 
-        // Stat numbers — Movie Snipe uses "found / searched" layout
-        if (app === 'movie_hunt' || app === 'tv_hunt') {
-            var found = Math.max(0, parseInt(inst.found) || 0);
-            var foundUpgrade = Math.max(0, parseInt(inst.found_upgrade) || 0);
-            var statBoxes = card.querySelectorAll('.stat-box');
-            // First box: Found / Searched
-            if (statBoxes[0]) {
-                var nums0 = statBoxes[0].querySelectorAll('.stat-number');
-                if (nums0[0]) { // found
-                    if (isFromCache) nums0[0].textContent = this.formatLargeNumber(found);
-                    else this.animateNumber(nums0[0], this.parseFormattedNumber(nums0[0].textContent || '0'), found);
-                }
-                if (nums0[1]) { // hunted
-                    if (isFromCache) nums0[1].textContent = this.formatLargeNumber(hunted);
-                    else this.animateNumber(nums0[1], this.parseFormattedNumber(nums0[1].textContent || '0'), hunted);
-                }
-            }
-            // Second box: Found / Upgrades
-            if (statBoxes[1]) {
-                var nums1 = statBoxes[1].querySelectorAll('.stat-number');
-                if (nums1[0]) { // found_upgrade
-                    if (isFromCache) nums1[0].textContent = this.formatLargeNumber(foundUpgrade);
-                    else this.animateNumber(nums1[0], this.parseFormattedNumber(nums1[0].textContent || '0'), foundUpgrade);
-                }
-                if (nums1[1]) { // upgraded
-                    if (isFromCache) nums1[1].textContent = this.formatLargeNumber(upgraded);
-                    else this.animateNumber(nums1[1], this.parseFormattedNumber(nums1[1].textContent || '0'), upgraded);
-                }
-            }
-        } else {
-            var numbers = card.querySelectorAll('.stat-number');
-            if (numbers[0]) {
-                if (isFromCache) numbers[0].textContent = this.formatLargeNumber(hunted);
-                else this.animateNumber(numbers[0], this.parseFormattedNumber(numbers[0].textContent || '0'), hunted);
-            }
-            if (numbers[1]) {
-                if (isFromCache) numbers[1].textContent = this.formatLargeNumber(upgraded);
-                else this.animateNumber(numbers[1], this.parseFormattedNumber(numbers[1].textContent || '0'), upgraded);
-            }
+        var numbers = card.querySelectorAll('.stat-number');
+        if (numbers[0]) {
+            if (isFromCache) numbers[0].textContent = this.formatLargeNumber(hunted);
+            else this.animateNumber(numbers[0], this.parseFormattedNumber(numbers[0].textContent || '0'), hunted);
+        }
+        if (numbers[1]) {
+            if (isFromCache) numbers[1].textContent = this.formatLargeNumber(upgraded);
+            else this.animateNumber(numbers[1], this.parseFormattedNumber(numbers[1].textContent || '0'), upgraded);
         }
 
         // Reset button instance name
@@ -545,10 +508,8 @@ window.SniparrStats = {
         var groupOrder = this._getGroupOrder();
         var visibleApps = [];
         var ui = window.sniparrUI || {};
-        var mediaHuntApps = { movie_hunt: true, tv_hunt: true };
         var thirdPartyApps = { sonarr: true, radarr: true, lidarr: true, readarr: true, whisparr: true, eros: true };
         groupOrder.forEach(function(app) {
-            if (mediaHuntApps[app] && ui._enableMediaHunt === false) return;
             if (thirdPartyApps[app] && ui._enableThirdPartyApps === false) return;
             if (stats[app] && (stats[app].instances && stats[app].instances.length > 0 ||
                 stats[app].hunted > 0 || stats[app].upgraded > 0)) {
@@ -597,8 +558,8 @@ window.SniparrStats = {
                     '</colgroup>' +
                     '<thead><tr>' +
                         '<th>Instance</th>' +
-                        '<th class="col-searches" data-abbr="' + (app === 'movie_hunt' || app === 'tv_hunt' ? 'F/Srch' : 'Searches') + '">' + (app === 'movie_hunt' || app === 'tv_hunt' ? 'Found / Searches' : 'Searches') + '</th>' +
-                        '<th class="col-upgrades" data-abbr="' + (app === 'movie_hunt' || app === 'tv_hunt' ? 'F/Upg' : 'Upgrades') + '">' + (app === 'movie_hunt' || app === 'tv_hunt' ? 'Found / Upgrades' : 'Upgrades') + '</th>' +
+                        '<th class="col-searches" data-abbr="Searches">Searches</th>' +
+                        '<th class="col-upgrades" data-abbr="Upgrades">Upgrades</th>' +
                         '<th>API / Status</th>' +
                         '<th></th>' +
                     '</tr></thead><tbody>';
@@ -614,13 +575,8 @@ window.SniparrStats = {
                 var pct = apiLimit > 0 ? Math.min(100, (apiHits / apiLimit) * 100) : 0;
                 var name = inst.instance_name || 'Default';
 
-                // Movie Snipe shows "found / searched" and "found / upgrades"
-                var searchesCell = (app === 'movie_hunt' || app === 'tv_hunt')
-                    ? '<span class="found-ratio"><span class="found-num">' + self.formatLargeNumber(found) + '</span> / ' + self.formatLargeNumber(hunted) + '</span>'
-                    : self.formatLargeNumber(hunted);
-                var upgradesCell = (app === 'movie_hunt' || app === 'tv_hunt')
-                    ? '<span class="found-ratio"><span class="found-num">' + self.formatLargeNumber(foundUpgrade) + '</span> / ' + self.formatLargeNumber(upgraded) + '</span>'
-                    : self.formatLargeNumber(upgraded);
+                var searchesCell = self.formatLargeNumber(hunted);
+                var upgradesCell = self.formatLargeNumber(upgraded);
 
                 html +=
                     '<tr data-instance-name="' + name + '">' +
@@ -857,7 +813,7 @@ window.SniparrStats = {
     checkAppConnections: function() {
         if (!window.sniparrUI) return;
         var self = this;
-        var apps = ['movie_hunt', 'tv_hunt', 'sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros'];
+        var apps = ['sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros'];
         var checkPromises = apps.map(function(app) { return self.checkAppConnection(app); });
         Promise.all(checkPromises)
             .then(function() {
@@ -877,7 +833,7 @@ window.SniparrStats = {
             .then(function(data) {
                 self.updateConnectionStatus(app, data);
                 var isConfigured = data.configured === true;
-                if (['movie_hunt', 'tv_hunt', 'sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros', 'swaparr'].indexOf(app) !== -1) {
+                if (['sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros', 'swaparr'].indexOf(app) !== -1) {
                     isConfigured = (data.total_configured || 0) > 0;
                 }
                 if (window.sniparrUI) window.sniparrUI.configuredApps[app] = isConfigured;
@@ -903,7 +859,7 @@ window.SniparrStats = {
         var connectedCount = (statusData && statusData.connected_count) || 0;
         var totalConfigured = (statusData && statusData.total_configured) || 0;
 
-        if (['movie_hunt', 'tv_hunt', 'sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros', 'swaparr'].indexOf(app) !== -1) {
+        if (['sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros', 'swaparr'].indexOf(app) !== -1) {
             isConfigured = totalConfigured > 0;
             isConnected = isConfigured && connectedCount > 0;
         }
@@ -924,7 +880,7 @@ window.SniparrStats = {
             return;
         }
 
-        if (['movie_hunt', 'tv_hunt', 'sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros', 'swaparr'].indexOf(app) !== -1) {
+        if (['sonarr', 'radarr', 'lidarr', 'readarr', 'whisparr', 'eros', 'swaparr'].indexOf(app) !== -1) {
             statusElement.innerHTML = '<i class="fas fa-plug"></i> Connected ' + connectedCount + '/' + totalConfigured;
             statusElement.className = 'status-badge ' + (isConnected ? 'connected' : 'error');
         } else {
