@@ -114,3 +114,79 @@ def test_join_mixed_match_rate():
     assert result["match_rate"] == pytest.approx(66.666, rel=0.01)
     assert len(result["matched"]) == 2
     assert len(result["unmapped"]) == 1
+
+
+from unittest.mock import patch, MagicMock
+from src.primary.apps.sonarr.episode_group_bridge import bridge_series
+from src.primary.utils.tmdb_client import TmdbApiKeyNotConfigured
+
+
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_manager_database")
+@patch("src.primary.apps.sonarr.episode_group_bridge.enable_scene_numbering", return_value=True)
+@patch("src.primary.apps.sonarr.episode_group_bridge.update_episode_scene_numbers", return_value=True)
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_group_detail")
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_groups_for_show")
+@patch("src.primary.apps.sonarr.episode_group_bridge.find_tmdb_id_by_tvdb_id", return_value=387)
+def test_bridge_series_happy_path(mock_find, mock_list_groups, mock_group_detail,
+                                    mock_update_scene, mock_enable_scene, mock_get_db):
+    mock_list_groups.return_value = [
+        {"id": "good1", "name": "Paramount+"},
+        {"id": "bad1", "name": "Skyshowtime"},
+    ]
+
+    def group_detail_side_effect(group_id):
+        if group_id == "good1":
+            return {
+                "groups": [{
+                    "order": 10, "name": "Season 10",
+                    "episodes": [{"name": "Whirlybrains", "air_date": "2016-10-15", "order": 0}],
+                }]
+            }
+        return {
+            "groups": [{
+                "order": 1, "name": "Season 1",
+                "episodes": [{"name": "Totally Unmatched Title", "air_date": "2016-10-15", "order": 0}],
+            }]
+        }
+
+    mock_group_detail.side_effect = group_detail_side_effect
+
+    sonarr_episodes = [
+        {"id": 1, "title": "Whirlybrains", "seasonNumber": 9, "episodeNumber": 43, "airDate": "2016-10-15"},
+    ]
+
+    mock_db = MagicMock()
+    mock_get_db.return_value = mock_db
+
+    result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
+                             sonarr_episodes=sonarr_episodes)
+
+    assert result["tmdb_id"] == 387
+    assert "Paramount+" in result["schemes_kept"]
+    assert "Skyshowtime" not in result["schemes_kept"]  # 0% match, below threshold
+    assert result["primary_scheme"] == "Paramount+"
+    assert result["episodes_updated"] == 1
+    assert result["error"] is None
+    mock_db.save_episode_group_mapping.assert_called_once()
+    mock_enable_scene.assert_called_once_with("http://sonarr:8989", "key", 30, 2145)
+
+
+@patch("src.primary.apps.sonarr.episode_group_bridge.find_tmdb_id_by_tvdb_id", return_value=None)
+def test_bridge_series_no_tmdb_match(mock_find):
+    result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=999999999,
+                             sonarr_episodes=[])
+
+    assert result["tmdb_id"] is None
+    assert result["schemes_kept"] == []
+    assert result["error"] == "No matching TMDB show found"
+
+
+@patch("src.primary.apps.sonarr.episode_group_bridge.find_tmdb_id_by_tvdb_id",
+       side_effect=TmdbApiKeyNotConfigured("no key"))
+def test_bridge_series_no_tmdb_key_configured(mock_find):
+    result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
+                             sonarr_episodes=[])
+
+    assert result["tmdb_id"] is None
+    assert result["schemes_kept"] == []
+    assert result["error"] == "No TMDB API key configured. Set your own key in Settings > General."
