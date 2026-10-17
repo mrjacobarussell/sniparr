@@ -1009,6 +1009,21 @@ class SniparrDatabase:
             conn.execute('CREATE INDEX IF NOT EXISTS idx_audit_username  ON security_audit_log(username)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_audit_event     ON security_audit_log(event)')
 
+            # TMDB episode-group bridge — resolved episode-group mapping per series/scheme
+            conn.execute('''
+                CREATE TABLE IF NOT EXISTS episode_group_mappings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    series_id INTEGER NOT NULL,
+                    tmdb_id INTEGER NOT NULL,
+                    scheme_name TEXT NOT NULL,
+                    is_primary BOOLEAN DEFAULT FALSE,
+                    match_rate REAL NOT NULL,
+                    mapping_json TEXT NOT NULL,
+                    built_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE(series_id, scheme_name)
+                )
+            ''')
+
             # Account lockout columns — added via migration so existing DBs are not broken
             try:
                 conn.execute('SELECT failed_login_count FROM users LIMIT 1')
@@ -2894,7 +2909,57 @@ class SniparrDatabase:
             logger.info(f"Saved {len(sponsors_data)} sponsors to database")
     
     # Hunt History/Manager Database Methods
-    def add_hunt_history_entry(self, app_type: str, instance_name: str, media_id: str, 
+    def save_episode_group_mapping(self, series_id: int, tmdb_id: int, scheme_name: str,
+                                     is_primary: bool, match_rate: float, mapping: Dict[str, int]) -> int:
+        """Save (or replace, if the same series_id+scheme_name already exists) one
+        TMDB episode-group's resolved mapping for a series."""
+        with self.get_connection() as conn:
+            conn.execute('''
+                INSERT INTO episode_group_mappings
+                (series_id, tmdb_id, scheme_name, is_primary, match_rate, mapping_json)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(series_id, scheme_name) DO UPDATE SET
+                    tmdb_id = excluded.tmdb_id,
+                    is_primary = excluded.is_primary,
+                    match_rate = excluded.match_rate,
+                    mapping_json = excluded.mapping_json,
+                    built_at = CURRENT_TIMESTAMP
+            ''', (series_id, tmdb_id, scheme_name, is_primary, match_rate, json.dumps(mapping)))
+            conn.commit()
+            row = conn.execute(
+                'SELECT id FROM episode_group_mappings WHERE series_id = ? AND scheme_name = ?',
+                (series_id, scheme_name)
+            ).fetchone()
+            return row[0]
+
+    def get_episode_group_mappings_for_series(self, series_id: int) -> List[Dict[str, Any]]:
+        """Return every stored TMDB scheme mapping for a series."""
+        with self.get_connection() as conn:
+            conn.row_factory = sqlite3.Row
+            rows = conn.execute(
+                'SELECT * FROM episode_group_mappings WHERE series_id = ?',
+                (series_id,)
+            ).fetchall()
+            results = [dict(row) for row in rows]
+            # sqlite3 has no native BOOLEAN type (no detect_types/converters are
+            # configured on this connection), so the column round-trips as an
+            # integer 0/1 — coerce it back to a real bool for callers.
+            for result in results:
+                result["is_primary"] = bool(result["is_primary"])
+            return results
+
+    def get_merged_mapping_table(self, series_id: int) -> Dict[str, int]:
+        """Flatten every stored scheme for a series into one lookup table keyed
+        '{scheme_name}|{season}|{episode}' -> sonarr_episode_id."""
+        merged = {}
+        for row in self.get_episode_group_mappings_for_series(series_id):
+            scheme = row["scheme_name"]
+            mapping = json.loads(row["mapping_json"])
+            for season_episode_key, sonarr_episode_id in mapping.items():
+                merged[f"{scheme}|{season_episode_key}"] = sonarr_episode_id
+        return merged
+
+    def add_hunt_history_entry(self, app_type: str, instance_name: str, media_id: str,
                          processed_info: str, operation_type: str = "missing", 
                          discovered: bool = False, date_time: int = None) -> Dict[str, Any]:
         """Add a new hunt history entry to the database"""
