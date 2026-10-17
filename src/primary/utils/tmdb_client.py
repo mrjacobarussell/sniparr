@@ -58,3 +58,37 @@ def find_tmdb_id_by_tvdb_id(tvdb_id: int) -> Optional[int]:
     except requests.exceptions.RequestException as e:
         logger.error(f"TMDB find-by-tvdb-id failed for {tvdb_id}: {e}")
         return None
+
+
+def get_episode_groups_for_show(tmdb_show_id: int) -> List[Dict[str, Any]]:
+    """List all TMDB episode groups for a show. Returns [] on failure or if none exist.
+    Raises TmdbApiKeyNotConfigured if no user TMDB key is set."""
+    api_key = require_user_tmdb_api_key()
+    try:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/tv/{tmdb_show_id}/episode_groups",
+            params={"api_key": api_key},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json().get("results", [])
+    except requests.exceptions.RequestException as e:
+        logger.error(f"TMDB episode_groups list failed for show {tmdb_show_id}: {e}")
+        return []
+
+
+def get_episode_group_detail(group_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch full episode detail for one TMDB episode group. Returns None on failure.
+    Raises TmdbApiKeyNotConfigured if no user TMDB key is set."""
+    api_key = require_user_tmdb_api_key()
+    try:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/tv/episode_group/{group_id}",
+            params={"api_key": api_key},
+            timeout=REQUEST_TIMEOUT,
+        )
+        response.raise_for_status()
+        return response.json()
+    except requests.exceptions.RequestException as e:
+        logger.error(f"TMDB episode_group detail failed for group {group_id}: {e}")
+        return None
