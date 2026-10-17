@@ -251,3 +251,6 @@ huntarr.db
 /settings/
 /stateful/
 /tally/
+
+# Local git worktrees (superpowers subagent-driven-development)
+.worktrees/
