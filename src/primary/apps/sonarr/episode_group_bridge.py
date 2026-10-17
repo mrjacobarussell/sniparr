@@ -114,54 +114,59 @@ def bridge_series(api_url: str, api_key: str, api_timeout: int, series_id: int,
     """
     try:
         tmdb_id = find_tmdb_id_by_tvdb_id(tvdb_id)
+
+        if tmdb_id is None:
+            logger.info(f"No TMDB show found for series {series_id} (tvdbId {tvdb_id}) — skipping bridge")
+            return {"tmdb_id": None, "schemes_kept": [], "primary_scheme": None,
+                    "episodes_updated": 0, "error": "No matching TMDB show found"}
+
+        groups = get_episode_groups_for_show(tmdb_id)
+        if not groups:
+            logger.info(f"No TMDB episode groups found for show {tmdb_id} (series {series_id})")
+            return {"tmdb_id": tmdb_id, "schemes_kept": [], "primary_scheme": None,
+                    "episodes_updated": 0, "error": "No episode groups available"}
+
+        kept_schemes = []  # list of (scheme_name, match_rate, matched_entries)
+        for group_summary in groups:
+            group_id = group_summary.get("id")
+            group_name = group_summary.get("name")
+            detail = get_episode_group_detail(group_id)
+            if not detail:
+                continue
+            join_result = join_group_episodes_to_sonarr(detail, sonarr_episodes)
+            if join_result["match_rate"] >= MIN_GROUP_MATCH_RATE:
+                kept_schemes.append((group_name, join_result["match_rate"], join_result["matched"]))
+            else:
+                logger.debug(f"Discarding TMDB group '{group_name}' for series {series_id}: "
+                             f"{join_result['match_rate']:.1f}% match rate (below {MIN_GROUP_MATCH_RATE}%)")
     except TmdbApiKeyNotConfigured as e:
         logger.info(f"Bridge skipped for series {series_id}: {e}")
         return {"tmdb_id": None, "schemes_kept": [], "primary_scheme": None,
                 "episodes_updated": 0,
                 "error": "No TMDB API key configured. Set your own key in Settings > General."}
 
-    if tmdb_id is None:
-        logger.info(f"No TMDB show found for series {series_id} (tvdbId {tvdb_id}) — skipping bridge")
-        return {"tmdb_id": None, "schemes_kept": [], "primary_scheme": None,
-                "episodes_updated": 0, "error": "No matching TMDB show found"}
-
-    groups = get_episode_groups_for_show(tmdb_id)
-    if not groups:
-        logger.info(f"No TMDB episode groups found for show {tmdb_id} (series {series_id})")
-        return {"tmdb_id": tmdb_id, "schemes_kept": [], "primary_scheme": None,
-                "episodes_updated": 0, "error": "No episode groups available"}
-
-    kept_schemes = []  # list of (scheme_name, match_rate, matched_entries)
-    for group_summary in groups:
-        group_id = group_summary.get("id")
-        group_name = group_summary.get("name")
-        detail = get_episode_group_detail(group_id)
-        if not detail:
-            continue
-        join_result = join_group_episodes_to_sonarr(detail, sonarr_episodes)
-        if join_result["match_rate"] >= MIN_GROUP_MATCH_RATE:
-            kept_schemes.append((group_name, join_result["match_rate"], join_result["matched"]))
-        else:
-            logger.debug(f"Discarding TMDB group '{group_name}' for series {series_id}: "
-                         f"{join_result['match_rate']:.1f}% match rate (below {MIN_GROUP_MATCH_RATE}%)")
-
     if not kept_schemes:
         logger.info(f"No TMDB episode groups cleared the match threshold for series {series_id}")
         return {"tmdb_id": tmdb_id, "schemes_kept": [], "primary_scheme": None,
                 "episodes_updated": 0, "error": "No episode group matched well enough"}
 
-    # Primary = highest match rate among kept schemes
-    primary_scheme, primary_match_rate, primary_entries = max(kept_schemes, key=lambda s: s[1])
+    # Primary = highest match rate among kept schemes. Identify it by index
+    # (object identity), not by scheme_name equality — two distinct TMDB
+    # episode groups can share the same display name, and name-equality
+    # comparison would flag every same-named kept scheme as primary.
+    primary_index, (primary_scheme, primary_match_rate, primary_entries) = max(
+        enumerate(kept_schemes), key=lambda pair: pair[1][1]
+    )
 
     db = get_manager_database()
-    for scheme_name, match_rate, matched_entries in kept_schemes:
+    for index, (scheme_name, match_rate, matched_entries) in enumerate(kept_schemes):
         mapping = {
             f"{entry['tmdb_season']}|{entry['tmdb_episode']}": entry["sonarr_episode_id"]
             for entry in matched_entries
         }
         db.save_episode_group_mapping(
             series_id=series_id, tmdb_id=tmdb_id, scheme_name=scheme_name,
-            is_primary=(scheme_name == primary_scheme), match_rate=match_rate, mapping=mapping,
+            is_primary=(index == primary_index), match_rate=match_rate, mapping=mapping,
         )
 
     updated_count = 0

@@ -190,3 +190,78 @@ def test_bridge_series_no_tmdb_key_configured(mock_find):
     assert result["tmdb_id"] is None
     assert result["schemes_kept"] == []
     assert result["error"] == "No TMDB API key configured. Set your own key in Settings > General."
+
+
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_groups_for_show",
+       side_effect=TmdbApiKeyNotConfigured("no key"))
+@patch("src.primary.apps.sonarr.episode_group_bridge.find_tmdb_id_by_tvdb_id", return_value=387)
+def test_bridge_series_key_revoked_before_list_groups_call(mock_find, mock_list_groups):
+    """TmdbApiKeyNotConfigured can be raised by any TMDB call, not just the
+    first one (find_tmdb_id_by_tvdb_id) — regression for Finding 1: the
+    try/except must cover every TMDB call, not just the first."""
+    result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
+                             sonarr_episodes=[])
+
+    assert result["tmdb_id"] is None
+    assert result["schemes_kept"] == []
+    assert result["error"] == "No TMDB API key configured. Set your own key in Settings > General."
+
+
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_manager_database")
+@patch("src.primary.apps.sonarr.episode_group_bridge.enable_scene_numbering", return_value=True)
+@patch("src.primary.apps.sonarr.episode_group_bridge.update_episode_scene_numbers", return_value=True)
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_group_detail")
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_groups_for_show")
+@patch("src.primary.apps.sonarr.episode_group_bridge.find_tmdb_id_by_tvdb_id", return_value=387)
+def test_bridge_series_same_named_groups_only_one_primary(
+        mock_find, mock_list_groups, mock_group_detail, mock_update_scene,
+        mock_enable_scene, mock_get_db):
+    """Two distinct TMDB episode groups (different group IDs) sharing the same
+    display name must not both be flagged is_primary=True — regression for
+    Finding 2: primary must be identified by identity/index, not name equality."""
+    mock_list_groups.return_value = [
+        {"id": "group-a", "name": "Same Name"},
+        {"id": "group-b", "name": "Same Name"},
+    ]
+
+    def group_detail_side_effect(group_id):
+        if group_id == "group-a":
+            return {
+                "groups": [{
+                    "order": 1, "name": "Season 1",
+                    "episodes": [{"name": "Whirlybrains", "air_date": "2016-10-15", "order": 0}],
+                }]
+            }
+        return {
+            "groups": [{
+                "order": 1, "name": "Season 1",
+                "episodes": [
+                    {"name": "Whirlybrains", "air_date": "2016-10-15", "order": 0},
+                    {"name": "Glove World R.I.P.", "air_date": "2012-04-03", "order": 1},
+                ],
+            }]
+        }
+
+    mock_group_detail.side_effect = group_detail_side_effect
+
+    sonarr_episodes = [
+        {"id": 1, "title": "Whirlybrains", "seasonNumber": 9, "episodeNumber": 43, "airDate": "2016-10-15"},
+        {"id": 2, "title": "Glove World R.I.P.", "seasonNumber": 9, "episodeNumber": 32, "airDate": "2012-04-03"},
+    ]
+
+    mock_db = MagicMock()
+    mock_get_db.return_value = mock_db
+
+    result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
+                             sonarr_episodes=sonarr_episodes)
+
+    assert result["schemes_kept"] == ["Same Name", "Same Name"]
+    assert mock_db.save_episode_group_mapping.call_count == 2
+    primary_flags = [
+        call.kwargs["is_primary"] for call in mock_db.save_episode_group_mapping.call_args_list
+    ]
+    assert primary_flags.count(True) == 1
+    assert primary_flags.count(False) == 1
+    # Both groups match 100% of their own episodes, so this is a tie — which
+    # one wins is an implementation detail; the only thing that matters here
+    # is that exactly one of the two same-named schemes ends up primary.
