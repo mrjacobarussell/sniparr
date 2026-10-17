@@ -1395,22 +1395,59 @@ def get_quality_profiles(api_url: str, api_key: str, api_timeout: int) -> Option
     """
     try:
         sonarr_logger.debug("Fetching quality profiles from Sonarr...")
-        
+
         # Use the qualityProfile endpoint - this doesn't count toward API limits since it's configuration data
         profiles = arr_request(api_url, api_key, api_timeout, "qualityProfile", count_api=False)
-        
+
         if profiles is None:
             sonarr_logger.error("Failed to retrieve quality profiles from Sonarr API.")
             return None
-        
+
         sonarr_logger.debug(f"Found {len(profiles)} quality profiles in Sonarr")
-        
+
         # Log profile names for debugging
         profile_names = [profile.get('name', 'Unknown') for profile in profiles]
         sonarr_logger.debug(f"Quality profiles: {', '.join(profile_names)}")
-        
+
         return profiles
-        
+
     except Exception as e:
         sonarr_logger.error(f"Error retrieving quality profiles: {str(e)}")
         return None
+
+def update_episode_scene_numbers(api_url: str, api_key: str, api_timeout: int,
+                                  episode_id: int, scene_season: int, scene_episode: int) -> bool:
+    """Set sceneSeasonNumber/sceneEpisodeNumber on one Sonarr episode."""
+    episode_data = arr_request(api_url, api_key, api_timeout, f"episode/{episode_id}", count_api=False)
+    if not episode_data:
+        sonarr_logger.error(f"Failed to get episode data for ID: {episode_id}")
+        return False
+
+    episode_data["sceneSeasonNumber"] = scene_season
+    episode_data["sceneEpisodeNumber"] = scene_episode
+
+    response = arr_request(api_url, api_key, api_timeout, f"episode/{episode_id}",
+                            method="PUT", data=episode_data, count_api=False)
+    if response:
+        sonarr_logger.debug(f"Set scene numbering {scene_season}x{scene_episode} on episode {episode_id}")
+        return True
+    sonarr_logger.error(f"Failed to update episode {episode_id} with scene numbering")
+    return False
+
+
+def enable_scene_numbering(api_url: str, api_key: str, api_timeout: int, series_id: int) -> bool:
+    """Set useSceneNumbering=True on a series."""
+    series_data = arr_request(api_url, api_key, api_timeout, f"series/{series_id}", count_api=False)
+    if not series_data:
+        sonarr_logger.error(f"Failed to get series data for ID: {series_id}")
+        return False
+
+    series_data["useSceneNumbering"] = True
+
+    response = arr_request(api_url, api_key, api_timeout, f"series/{series_id}",
+                            method="PUT", data=series_data, count_api=False)
+    if response:
+        sonarr_logger.debug(f"Enabled scene numbering on series {series_id}")
+        return True
+    sonarr_logger.error(f"Failed to enable scene numbering on series {series_id}")
+    return False
