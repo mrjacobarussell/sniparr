@@ -11,6 +11,9 @@ import traceback
 import socket
 from urllib.parse import urlparse
 from src.primary.apps.sonarr import missing, upgrade
+from src.primary.apps.sonarr import get_configured_instances
+from src.primary.apps.sonarr import api as sonarr_api
+from src.primary.apps.sonarr.episode_group_bridge import bridge_series
 from src.primary.auth import get_app_url_and_key
 from src.primary.utils.database import get_database
 from src.primary import settings_manager
@@ -98,6 +101,48 @@ def sonarr_reset():
             
     except Exception as e:
         logger.error(f"Error resetting Sonarr state: {e}")
+        return jsonify({"error": str(e)}), 500
+
+@sonarr_bp.route('/bridge-episode-groups', methods=['POST'])
+def bridge_episode_groups():
+    """Discover and bridge TMDB episode groups into Sonarr scene numbering for one series."""
+    try:
+        data = request.get_json() or {}
+        instance_id = data.get("instance_id")
+        series_id = data.get("series_id")
+        tvdb_id = data.get("tvdb_id")
+
+        if not all([instance_id, series_id, tvdb_id]):
+            return jsonify({"error": "instance_id, series_id, and tvdb_id are required"}), 400
+
+        # Per-instance config lookup: this blueprint's own /api/sonarr/missing route uses
+        # the single-instance get_app_url_and_key("sonarr") helper, which has no concept
+        # of instance_id or api_timeout and isn't suitable here. get_configured_instances()
+        # is the real multi-instance lookup used elsewhere in the app (e.g.
+        # src/primary/stateful_routes.py's _resolve_instance_id()) for resolving one
+        # configured Sonarr instance's settings by instance_id.
+        instance = next(
+            (inst for inst in get_configured_instances(quiet=True) if inst.get("instance_id") == instance_id),
+            None,
+        )
+        if not instance:
+            return jsonify({"error": f"Unknown Sonarr instance: {instance_id}"}), 404
+
+        api_url = instance["api_url"]
+        api_key = instance["api_key"]
+        api_timeout = instance.get("api_timeout", 120)
+
+        sonarr_episodes = sonarr_api.arr_request(
+            api_url, api_key, api_timeout, f"episode?seriesId={series_id}", count_api=False
+        )
+        if not sonarr_episodes:
+            return jsonify({"error": "Could not fetch episodes from Sonarr"}), 502
+
+        result = bridge_series(api_url, api_key, api_timeout, series_id, tvdb_id, sonarr_episodes)
+        return jsonify(result), 200
+
+    except Exception as e:
+        logger.error(f"Error bridging episode groups for Sonarr series: {e}")
         return jsonify({"error": str(e)}), 500
 
 @sonarr_bp.route('/test-connection', methods=['POST'])
