@@ -1009,10 +1009,16 @@ class SniparrDatabase:
             conn.execute('CREATE INDEX IF NOT EXISTS idx_audit_username  ON security_audit_log(username)')
             conn.execute('CREATE INDEX IF NOT EXISTS idx_audit_event     ON security_audit_log(event)')
 
-            # TMDB episode-group bridge — resolved episode-group mapping per series/scheme
+            # TMDB episode-group bridge — resolved episode-group mapping per series/scheme.
+            # Scoped by sonarr_instance_id because Sonarr series IDs are only unique
+            # within a single Sonarr instance — two different configured instances can
+            # both have a series with the same numeric ID, and without this scoping a
+            # bridge run against one instance could silently overwrite (or be confused
+            # with) another instance's mapping for the "same" series_id.
             conn.execute('''
                 CREATE TABLE IF NOT EXISTS episode_group_mappings (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    sonarr_instance_id TEXT NOT NULL,
                     series_id INTEGER NOT NULL,
                     tmdb_id INTEGER NOT NULL,
                     scheme_name TEXT NOT NULL,
@@ -1020,7 +1026,7 @@ class SniparrDatabase:
                     match_rate REAL NOT NULL,
                     mapping_json TEXT NOT NULL,
                     built_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    UNIQUE(series_id, scheme_name)
+                    UNIQUE(sonarr_instance_id, series_id, scheme_name)
                 )
             ''')
 
@@ -2909,36 +2915,45 @@ class SniparrDatabase:
             logger.info(f"Saved {len(sponsors_data)} sponsors to database")
     
     # Hunt History/Manager Database Methods
-    def save_episode_group_mapping(self, series_id: int, tmdb_id: int, scheme_name: str,
-                                     is_primary: bool, match_rate: float, mapping: Dict[str, int]) -> int:
-        """Save (or replace, if the same series_id+scheme_name already exists) one
-        TMDB episode-group's resolved mapping for a series."""
+    def save_episode_group_mapping(self, sonarr_instance_id: str, series_id: int, tmdb_id: int,
+                                     scheme_name: str, is_primary: bool, match_rate: float,
+                                     mapping: Dict[str, int]) -> int:
+        """Save (or replace, if the same sonarr_instance_id+series_id+scheme_name already
+        exists) one TMDB episode-group's resolved mapping for a series.
+
+        sonarr_instance_id scopes this row to one configured Sonarr instance — series IDs
+        are only unique within a single Sonarr instance, so without this scoping two
+        different instances' series sharing the same numeric ID would collide."""
         with self.get_connection() as conn:
             conn.execute('''
                 INSERT INTO episode_group_mappings
-                (series_id, tmdb_id, scheme_name, is_primary, match_rate, mapping_json)
-                VALUES (?, ?, ?, ?, ?, ?)
-                ON CONFLICT(series_id, scheme_name) DO UPDATE SET
+                (sonarr_instance_id, series_id, tmdb_id, scheme_name, is_primary, match_rate, mapping_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(sonarr_instance_id, series_id, scheme_name) DO UPDATE SET
                     tmdb_id = excluded.tmdb_id,
                     is_primary = excluded.is_primary,
                     match_rate = excluded.match_rate,
                     mapping_json = excluded.mapping_json,
                     built_at = CURRENT_TIMESTAMP
-            ''', (series_id, tmdb_id, scheme_name, is_primary, match_rate, json.dumps(mapping)))
+            ''', (sonarr_instance_id, series_id, tmdb_id, scheme_name, is_primary, match_rate, json.dumps(mapping)))
             conn.commit()
             row = conn.execute(
-                'SELECT id FROM episode_group_mappings WHERE series_id = ? AND scheme_name = ?',
-                (series_id, scheme_name)
+                'SELECT id FROM episode_group_mappings WHERE sonarr_instance_id = ? AND series_id = ? AND scheme_name = ?',
+                (sonarr_instance_id, series_id, scheme_name)
             ).fetchone()
             return row[0]
 
-    def get_episode_group_mappings_for_series(self, series_id: int) -> List[Dict[str, Any]]:
-        """Return every stored TMDB scheme mapping for a series."""
+    def get_episode_group_mappings_for_series(self, sonarr_instance_id: str, series_id: int) -> List[Dict[str, Any]]:
+        """Return every stored TMDB scheme mapping for a series on one Sonarr instance,
+        ordered primary-first then by descending match_rate — so callers that merge
+        these rows in order (e.g. get_merged_mapping_table) naturally try the
+        highest-priority scheme first without any extra ranking logic."""
         with self.get_connection() as conn:
             conn.row_factory = sqlite3.Row
             rows = conn.execute(
-                'SELECT * FROM episode_group_mappings WHERE series_id = ?',
-                (series_id,)
+                'SELECT * FROM episode_group_mappings WHERE sonarr_instance_id = ? AND series_id = ? '
+                'ORDER BY is_primary DESC, match_rate DESC',
+                (sonarr_instance_id, series_id)
             ).fetchall()
             results = [dict(row) for row in rows]
             # sqlite3 has no native BOOLEAN type (no detect_types/converters are
@@ -2948,11 +2963,14 @@ class SniparrDatabase:
                 result["is_primary"] = bool(result["is_primary"])
             return results
 
-    def get_merged_mapping_table(self, series_id: int) -> Dict[str, int]:
-        """Flatten every stored scheme for a series into one lookup table keyed
-        '{scheme_name}|{season}|{episode}' -> sonarr_episode_id."""
+    def get_merged_mapping_table(self, sonarr_instance_id: str, series_id: int) -> Dict[str, int]:
+        """Flatten every stored scheme for a series on one Sonarr instance into one
+        lookup table keyed '{scheme_name}|{season}|{episode}' -> sonarr_episode_id.
+        Rows are merged in primary-first/highest-match_rate-first order (see
+        get_episode_group_mappings_for_series), so dict iteration order over the
+        result reflects scheme priority."""
         merged = {}
-        for row in self.get_episode_group_mappings_for_series(series_id):
+        for row in self.get_episode_group_mappings_for_series(sonarr_instance_id, series_id):
             scheme = row["scheme_name"]
             mapping = json.loads(row["mapping_json"])
             for season_episode_key, sonarr_episode_id in mapping.items():

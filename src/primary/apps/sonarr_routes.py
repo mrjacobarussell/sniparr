@@ -138,7 +138,7 @@ def bridge_episode_groups():
         if not sonarr_episodes:
             return jsonify({"error": "Could not fetch episodes from Sonarr"}), 502
 
-        result = bridge_series(api_url, api_key, api_timeout, series_id, tvdb_id, sonarr_episodes)
+        result = bridge_series(api_url, api_key, api_timeout, series_id, tvdb_id, sonarr_episodes, instance_id)
         return jsonify(result), 200
 
     except Exception as e:

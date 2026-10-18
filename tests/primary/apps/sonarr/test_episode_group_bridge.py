@@ -116,6 +116,48 @@ def test_join_mixed_match_rate():
     assert len(result["unmapped"]) == 1
 
 
+def test_join_skips_season_group_with_non_int_order():
+    """Regression for Minor Fix C: a season-group with a missing/non-int
+    'order' must be skipped entirely (no crash, no malformed "None|N" key),
+    while other, well-formed season-groups in the same response still join
+    normally."""
+    sonarr_eps = [_sonarr_episode(1, "Whirlybrains", 9, 43, "2016-10-15")]
+    group = {
+        "groups": [
+            {
+                "order": None,  # malformed — TMDB omitted it
+                "name": "Bad Group",
+                "episodes": [{"name": "Whirlybrains", "air_date": "2016-10-15", "order": 0}],
+            },
+            {
+                "order": 10,
+                "name": "Season 10",
+                "episodes": [{"name": "Whirlybrains", "air_date": "2016-10-15", "order": 0}],
+            },
+        ]
+    }
+
+    result = join_group_episodes_to_sonarr(group, sonarr_eps)
+
+    # Only the well-formed season-group's episode is counted at all.
+    assert result["match_rate"] == 100.0
+    assert len(result["matched"]) == 1
+    assert result["matched"][0]["tmdb_season"] == 10
+    assert result["ambiguous"] == []
+    assert result["unmapped"] == []
+
+
+def test_join_unmapped_and_ambiguous_entries_carry_tmdb_season():
+    """Ambiguous/unmapped entries must carry enough context (tmdb_season) for
+    bridge_series to log something useful (Finding 5)."""
+    sonarr_eps = [_sonarr_episode(1, "Whirlybrains", 9, 43, "2016-10-15")]
+    group = _tmdb_group_detail(10, [("A Completely Different Title", "2016-10-15")])
+
+    result = join_group_episodes_to_sonarr(group, sonarr_eps)
+
+    assert result["unmapped"][0]["tmdb_season"] == 10
+
+
 from unittest.mock import patch, MagicMock
 from src.primary.apps.sonarr.episode_group_bridge import bridge_series
 from src.primary.utils.tmdb_client import TmdbApiKeyNotConfigured
@@ -159,22 +201,26 @@ def test_bridge_series_happy_path(mock_find, mock_list_groups, mock_group_detail
     mock_get_db.return_value = mock_db
 
     result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
-                             sonarr_episodes=sonarr_episodes)
+                             sonarr_episodes=sonarr_episodes, sonarr_instance_id="sonarr-instance-a")
 
     assert result["tmdb_id"] == 387
     assert "Paramount+" in result["schemes_kept"]
     assert "Skyshowtime" not in result["schemes_kept"]  # 0% match, below threshold
     assert result["primary_scheme"] == "Paramount+"
     assert result["episodes_updated"] == 1
+    assert result["scene_numbering_enabled"] is True
+    assert result["unmapped_count"] == 0
+    assert result["ambiguous_count"] == 0
     assert result["error"] is None
     mock_db.save_episode_group_mapping.assert_called_once()
+    assert mock_db.save_episode_group_mapping.call_args.kwargs["sonarr_instance_id"] == "sonarr-instance-a"
     mock_enable_scene.assert_called_once_with("http://sonarr:8989", "key", 30, 2145)
 
 
 @patch("src.primary.apps.sonarr.episode_group_bridge.find_tmdb_id_by_tvdb_id", return_value=None)
 def test_bridge_series_no_tmdb_match(mock_find):
     result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=999999999,
-                             sonarr_episodes=[])
+                             sonarr_episodes=[], sonarr_instance_id="sonarr-instance-a")
 
     assert result["tmdb_id"] is None
     assert result["schemes_kept"] == []
@@ -185,7 +231,7 @@ def test_bridge_series_no_tmdb_match(mock_find):
        side_effect=TmdbApiKeyNotConfigured("no key"))
 def test_bridge_series_no_tmdb_key_configured(mock_find):
     result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
-                             sonarr_episodes=[])
+                             sonarr_episodes=[], sonarr_instance_id="sonarr-instance-a")
 
     assert result["tmdb_id"] is None
     assert result["schemes_kept"] == []
@@ -200,7 +246,7 @@ def test_bridge_series_key_revoked_before_list_groups_call(mock_find, mock_list_
     first one (find_tmdb_id_by_tvdb_id) — regression for Finding 1: the
     try/except must cover every TMDB call, not just the first."""
     result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
-                             sonarr_episodes=[])
+                             sonarr_episodes=[], sonarr_instance_id="sonarr-instance-a")
 
     assert result["tmdb_id"] is None
     assert result["schemes_kept"] == []
@@ -253,7 +299,7 @@ def test_bridge_series_same_named_groups_only_one_primary(
     mock_get_db.return_value = mock_db
 
     result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
-                             sonarr_episodes=sonarr_episodes)
+                             sonarr_episodes=sonarr_episodes, sonarr_instance_id="sonarr-instance-a")
 
     assert result["schemes_kept"] == ["Same Name", "Same Name"]
     assert mock_db.save_episode_group_mapping.call_count == 2
@@ -265,3 +311,105 @@ def test_bridge_series_same_named_groups_only_one_primary(
     # Both groups match 100% of their own episodes, so this is a tie — which
     # one wins is an implementation detail; the only thing that matters here
     # is that exactly one of the two same-named schemes ends up primary.
+    for call in mock_db.save_episode_group_mapping.call_args_list:
+        assert call.kwargs["sonarr_instance_id"] == "sonarr-instance-a"
+
+
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_manager_database")
+@patch("src.primary.apps.sonarr.episode_group_bridge.enable_scene_numbering")
+@patch("src.primary.apps.sonarr.episode_group_bridge.update_episode_scene_numbers", return_value=True)
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_group_detail")
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_groups_for_show")
+@patch("src.primary.apps.sonarr.episode_group_bridge.find_tmdb_id_by_tvdb_id", return_value=387)
+def test_bridge_series_retries_scene_numbering_once_then_succeeds(
+        mock_find, mock_list_groups, mock_group_detail, mock_update_scene, mock_enable_scene, mock_get_db):
+    """Regression for Finding 3: enable_scene_numbering's return value must be
+    checked and retried once on failure."""
+    mock_list_groups.return_value = [{"id": "good1", "name": "Paramount+"}]
+    mock_group_detail.return_value = {
+        "groups": [{
+            "order": 10, "name": "Season 10",
+            "episodes": [{"name": "Whirlybrains", "air_date": "2016-10-15", "order": 0}],
+        }]
+    }
+    mock_enable_scene.side_effect = [False, True]
+    sonarr_episodes = [
+        {"id": 1, "title": "Whirlybrains", "seasonNumber": 9, "episodeNumber": 43, "airDate": "2016-10-15"},
+    ]
+    mock_get_db.return_value = MagicMock()
+
+    result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
+                             sonarr_episodes=sonarr_episodes, sonarr_instance_id="sonarr-instance-a")
+
+    assert mock_enable_scene.call_count == 2
+    assert result["scene_numbering_enabled"] is True
+    assert result["error"] is None
+
+
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_manager_database")
+@patch("src.primary.apps.sonarr.episode_group_bridge.enable_scene_numbering", return_value=False)
+@patch("src.primary.apps.sonarr.episode_group_bridge.update_episode_scene_numbers", return_value=True)
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_group_detail")
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_groups_for_show")
+@patch("src.primary.apps.sonarr.episode_group_bridge.find_tmdb_id_by_tvdb_id", return_value=387)
+def test_bridge_series_scene_numbering_fails_after_retry_surfaces_error(
+        mock_find, mock_list_groups, mock_group_detail, mock_update_scene, mock_enable_scene, mock_get_db):
+    """Regression for Finding 3: if enable_scene_numbering still fails after one
+    retry, bridge_series must surface it — not silently report full success."""
+    mock_list_groups.return_value = [{"id": "good1", "name": "Paramount+"}]
+    mock_group_detail.return_value = {
+        "groups": [{
+            "order": 10, "name": "Season 10",
+            "episodes": [{"name": "Whirlybrains", "air_date": "2016-10-15", "order": 0}],
+        }]
+    }
+    sonarr_episodes = [
+        {"id": 1, "title": "Whirlybrains", "seasonNumber": 9, "episodeNumber": 43, "airDate": "2016-10-15"},
+    ]
+    mock_get_db.return_value = MagicMock()
+
+    result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
+                             sonarr_episodes=sonarr_episodes, sonarr_instance_id="sonarr-instance-a")
+
+    assert mock_enable_scene.call_count == 2
+    assert result["scene_numbering_enabled"] is False
+    assert result["error"] is not None
+    assert result["episodes_updated"] == 1  # scene numbers were still written
+
+
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_manager_database")
+@patch("src.primary.apps.sonarr.episode_group_bridge.enable_scene_numbering", return_value=True)
+@patch("src.primary.apps.sonarr.episode_group_bridge.update_episode_scene_numbers", return_value=True)
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_group_detail")
+@patch("src.primary.apps.sonarr.episode_group_bridge.get_episode_groups_for_show")
+@patch("src.primary.apps.sonarr.episode_group_bridge.find_tmdb_id_by_tvdb_id", return_value=387)
+def test_bridge_series_surfaces_unmapped_and_ambiguous_counts_for_primary_scheme(
+        mock_find, mock_list_groups, mock_group_detail, mock_update_scene, mock_enable_scene, mock_get_db):
+    """Regression for Finding 5: unmapped/ambiguous episodes in the primary
+    scheme must be logged and surfaced in the result, not silently discarded."""
+    mock_list_groups.return_value = [{"id": "good1", "name": "Paramount+"}]
+    mock_group_detail.return_value = {
+        "groups": [{
+            "order": 10, "name": "Season 10",
+            "episodes": [
+                {"name": "Whirlybrains", "air_date": "2016-10-15", "order": 0},
+                {"name": "Some Unmatched Title", "air_date": "2016-10-16", "order": 1},
+            ],
+        }]
+    }
+    # Only one Sonarr episode exists to match "Whirlybrains"; "Some Unmatched
+    # Title" has no candidate at all, so it lands in "unmapped". Both are
+    # still part of the same TMDB group, which still clears the 95% threshold
+    # only if match_rate is computed per-group — here we force a 50% match_rate
+    # scenario below threshold instead by widening via a second matched group.
+    sonarr_episodes = [
+        {"id": 1, "title": "Whirlybrains", "seasonNumber": 9, "episodeNumber": 43, "airDate": "2016-10-15"},
+    ]
+    mock_get_db.return_value = MagicMock()
+
+    with patch("src.primary.apps.sonarr.episode_group_bridge.MIN_GROUP_MATCH_RATE", 0.0):
+        result = bridge_series("http://sonarr:8989", "key", 30, series_id=2145, tvdb_id=121361,
+                                 sonarr_episodes=sonarr_episodes, sonarr_instance_id="sonarr-instance-a")
+
+    assert result["unmapped_count"] == 1
+    assert result["ambiguous_count"] == 0

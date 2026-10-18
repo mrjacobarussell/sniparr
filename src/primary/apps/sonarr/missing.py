@@ -403,7 +403,16 @@ def process_missing_seasons_packs_mode(
             # mapping table. Wrapped so a failure here can never break the
             # surrounding missing-episode search cycle.
             try:
-                stuck_result = resolve_stuck_queue_items(api_url, api_key, api_timeout, series_id)
+                # `instance_name` here is actually `instance_key` as set by the caller
+                # in background.py ("Stable ID for DB/history keying" — instance_id when
+                # available, falling back to the display name only for legacy/
+                # single-instance configs) — the same value already used a few lines up
+                # for is_processed/add_processed_id/log_processed_media. That's the real
+                # per-instance identifier in scope here, so it's what scopes the merged
+                # mapping-table lookup to the correct Sonarr instance (Finding 1).
+                stuck_result = resolve_stuck_queue_items(
+                    api_url, api_key, api_timeout, series_id, sonarr_instance_id=instance_name
+                )
                 if stuck_result["resolved"] > 0:
                     sonarr_logger.info(f"Resolved {stuck_result['resolved']} stuck import(s) via TMDB episode-group mapping for series {series_id}")
             except Exception as e:

@@ -15,7 +15,7 @@ import requests
 from src.primary.settings_manager import get_setting
 from src.primary.utils.logger import get_logger
 
-logger = get_logger("tmdb_client")
+logger = get_logger("sonarr")
 
 TMDB_BASE_URL = "https://api.themoviedb.org/3"
 REQUEST_TIMEOUT = 15
@@ -30,7 +30,10 @@ class TmdbApiKeyNotConfigured(Exception):
 def require_user_tmdb_api_key() -> str:
     """Return the user's own configured TMDB API key. Raises
     TmdbApiKeyNotConfigured if unset — never falls back to a shared key."""
-    key = get_setting("general", "tmdb_api_key", "").strip()
+    # get_setting() can return None (e.g. a stored null) rather than "" — guard
+    # with `or ""` so that case raises TmdbApiKeyNotConfigured cleanly instead of
+    # an AttributeError, which would violate bridge_series()'s "never raises" contract.
+    key = (get_setting("general", "tmdb_api_key", "") or "").strip()
     if not key:
         raise TmdbApiKeyNotConfigured(
             "No TMDB API key configured. Set your own key under Settings > General > TMDB API Key."

@@ -26,6 +26,25 @@ def test_require_user_tmdb_api_key_missing_raises(mock_get_setting):
         require_user_tmdb_api_key()
 
 
+@patch("src.primary.utils.tmdb_client.get_setting", return_value=None)
+def test_require_user_tmdb_api_key_none_raises_cleanly(mock_get_setting):
+    """Regression for Minor Fix A: get_setting() returning None (e.g. a stored
+    null) must raise TmdbApiKeyNotConfigured, not AttributeError on .strip()."""
+    with pytest.raises(TmdbApiKeyNotConfigured):
+        require_user_tmdb_api_key()
+
+
+def test_tmdb_client_uses_sonarr_log_channel():
+    """Regression for Minor Fix B: get_logger("tmdb_client") isn't a registered
+    app log channel and silently falls back to the main logger. This module's
+    calls are all made on behalf of the Sonarr bridge feature, so it should log
+    to the "sonarr" channel like the rest of that feature."""
+    from src.primary.utils import tmdb_client
+    from src.primary.utils.logger import get_logger
+
+    assert tmdb_client.logger is get_logger("sonarr")
+
+
 @patch("src.primary.utils.tmdb_client.requests.get")
 @patch("src.primary.utils.tmdb_client.require_user_tmdb_api_key", return_value="fake-key")
 def test_find_tmdb_id_by_tvdb_id_found(mock_key, mock_get):

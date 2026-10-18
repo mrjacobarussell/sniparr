@@ -76,7 +76,9 @@ def test_missing_seasons_packs_mode_calls_stuck_import_resolver(
     result = _call()
 
     assert result is True
-    mock_resolve.assert_called_once_with("http://sonarr:8989", "key", 30, SERIES_ID)
+    mock_resolve.assert_called_once_with(
+        "http://sonarr:8989", "key", 30, SERIES_ID, sonarr_instance_id="Default"
+    )
 
 
 @patch("src.primary.apps.sonarr.missing.resolve_stuck_queue_items", side_effect=RuntimeError("boom"))
@@ -106,4 +108,6 @@ def test_stuck_import_resolver_failure_does_not_break_missing_cycle(
     result = _call()
 
     assert result is True
-    mock_resolve.assert_called_once_with("http://sonarr:8989", "key", 30, SERIES_ID)
+    mock_resolve.assert_called_once_with(
+        "http://sonarr:8989", "key", 30, SERIES_ID, sonarr_instance_id="Default"
+    )

@@ -98,7 +98,8 @@ def test_bridge_episode_groups_route(mock_bridge, mock_get_instances, mock_arr_r
     assert response.status_code == 200
     assert response.json["primary_scheme"] == "Paramount+"
     mock_bridge.assert_called_once_with(
-        "http://localhost:8989", "testkey", 120, 2145, 121361, mock_arr_request.return_value
+        "http://localhost:8989", "testkey", 120, 2145, 121361, mock_arr_request.return_value,
+        "sonarr-26052302516ly",
     )
 
 

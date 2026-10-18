@@ -162,6 +162,7 @@
                             <label for="tmdb_api_key">TMDB API Key:</label>
                             <input type="password" id="tmdb_api_key" value="${settings.tmdb_api_key || ""}" placeholder="Leave blank to use the built-in key" class="mset-input">
                             <p class="setting-help">Override the built-in TMDB API key with your own. Get one free at <a href="https://www.themoviedb.org/settings/api" target="_blank">themoviedb.org/settings/api</a>.</p>
+                            <p class="setting-help">Note: the TMDB Episode Group Bridge feature (Sonarr) always requires your own key here — the built-in key does not work for it.</p>
                         </div>
 
                         <div class="setting-item" style="margin-top: 15px;">
