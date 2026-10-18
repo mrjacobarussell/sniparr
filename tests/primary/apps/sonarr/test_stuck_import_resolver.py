@@ -152,27 +152,21 @@ def test_resolve_stuck_queue_items_different_instance_scopes_lookup(mock_arr_req
 
 @patch("src.primary.apps.sonarr.stuck_import_resolver.get_manager_database")
 @patch("src.primary.apps.sonarr.stuck_import_resolver.arr_request")
-def test_resolve_stuck_queue_items_conflicting_schemes_logs_and_picks_first(mock_arr_request, mock_get_db, caplog):
-    """Regression for Finding 2: when two schemes disagree on the same
-    (season, episode), the resolver must log the conflict and pick the
-    highest-priority (first in the already-ordered merged table) scheme,
-    never silently guess among them without a trace."""
-    mock_arr_request.side_effect = [
-        [
-            {
-                "title": "Show.S10E59.720p-GRP",
-                "seriesId": 2145,
-                "trackedDownloadStatus": "warning",
-                "trackedDownloadState": "importBlocked",
-                "outputPath": "/data/incomplete/x",
-            }
-        ],
-        {"id": 1, "status": "started"},
+def test_resolve_stuck_queue_items_conflicting_schemes_logs_and_treats_as_unresolved(mock_arr_request, mock_get_db, caplog):
+    """When two schemes disagree on the same (season, episode), the resolver
+    must log the conflict and treat it as unresolved — never guess between
+    conflicting candidates, even the highest-priority one. A wrong pick here
+    would force-import onto the wrong episode."""
+    mock_arr_request.return_value = [
+        {
+            "title": "Show.S10E59.720p-GRP",
+            "seriesId": 2145,
+            "trackedDownloadStatus": "warning",
+            "trackedDownloadState": "importBlocked",
+            "outputPath": "/data/incomplete/x",
+        }
     ]
     mock_db = MagicMock()
-    # "Primary" comes first because get_merged_mapping_table's underlying
-    # query orders primary-first/highest-match_rate-first; dict insertion
-    # order here simulates that.
     mock_db.get_merged_mapping_table.return_value = {
         "Primary|10|59": 111,
         "Secondary|10|59": 222,
@@ -185,7 +179,7 @@ def test_resolve_stuck_queue_items_conflicting_schemes_logs_and_picks_first(mock
             "http://sonarr:8989", "key", 30, series_id=2145, sonarr_instance_id="sonarr-instance-a"
         )
 
-    assert result["resolved"] == 1
-    manual_import_call = mock_arr_request.call_args_list[1]
-    assert manual_import_call.kwargs["data"]["files"][0]["episodeIds"] == [111]
+    assert result["resolved"] == 0
+    assert result["unresolved"] == 1
+    mock_arr_request.assert_called_once()  # only the queue fetch, no ManualImport POST
     assert any("Conflicting" in record.message for record in caplog.records)

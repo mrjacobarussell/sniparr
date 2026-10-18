@@ -73,8 +73,11 @@ def _find_sonarr_episode_id(merged_table: Dict[str, int], season: int, episode: 
     ranking logic needed here (Finding 2).
 
     If multiple schemes disagree on which Sonarr episode this (season,
-    episode) resolves to, that's logged (never silently picked) and the
-    highest-priority one is still used.
+    episode) resolves to, that's a genuine ambiguity — per the "never guess"
+    rule, this returns None (unresolved) rather than picking any one of the
+    conflicting candidates, even the highest-priority one. A wrong pick here
+    would force-import onto the wrong episode, potentially overwriting a
+    real existing file.
 
     Keys are "{scheme_name}|{season}|{episode}". A key that doesn't split
     into exactly 3 parts, or whose season/episode aren't integers, is simply
@@ -98,15 +101,16 @@ def _find_sonarr_episode_id(merged_table: Dict[str, int], season: int, episode: 
     if not matches:
         return None
 
-    chosen_scheme, chosen_id = matches[0]
     distinct_ids = {candidate_id for _, candidate_id in matches}
     if len(distinct_ids) > 1:
         conflict_detail = ", ".join(f"{name} -> episode {cid}" for name, cid in matches)
         logger.warning(
             f"Conflicting TMDB schemes for S{season}E{episode}: {conflict_detail}. "
-            f"Using '{chosen_scheme}' (highest priority) -> episode {chosen_id}."
+            f"Treating as unresolved — never guessing between conflicting candidates."
         )
-    return chosen_id
+        return None
+
+    return matches[0][1]
 
 
 def resolve_stuck_queue_items(api_url: str, api_key: str, api_timeout: int, series_id: int,
