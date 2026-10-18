@@ -9,7 +9,7 @@ pyotp==2.9.0       # Added pyotp
 pytz==2025.2       # Timezone support (bumped from 2023.3 — stale tz data)
 pywin32==308; sys_platform == 'win32' # For Windows service support
 sabyenc3>=5.4.4    # Hardware-accelerated yEnc decoder (used by SABnzbd)
-apprise==1.6.0     # Added for notification support
+apprise==1.11.0    # Added for notification support (bumped from 1.6.0 — PYSEC-2026-4200)
 markdown==3.8.1    # CVE-2025-69534: bump from 3.4.3
 pyyaml==6.0.2      # Required by apprise (bumped from 6.0.1 — indirect libyaml CVE-2024-35326)
 
