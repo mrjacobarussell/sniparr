@@ -16,6 +16,7 @@ from src.primary.stats_manager import increment_stat, increment_stat_only, check
 from src.primary.stateful_manager import is_processed, add_processed_id
 from src.primary.apps._common.tagging import try_tag_item, extract_tag_settings
 from src.primary.apps.sonarr import api as sonarr_api
+from src.primary.apps.sonarr.stuck_import_resolver import resolve_stuck_queue_items
 
 def should_delay_episode_search(air_date_str: str, delay_days: int) -> bool:
     """
@@ -389,11 +390,33 @@ def process_missing_seasons_packs_mode(
             # Wait for command to complete if configured
             if command_wait_delay > 0 and command_wait_attempts > 0:
                 if wait_for_command(
-                    api_url, api_key, api_timeout, command_id, 
+                    api_url, api_key, api_timeout, command_id,
                     command_wait_delay, command_wait_attempts, "Season Search", stop_check,
                     instance_name=instance_name
                 ):
                     pass
+
+            # TMDB episode-group bridge: after a season search has been
+            # triggered for this series, check whether Sonarr's queue has
+            # any stuck import items for it that scene numbering alone
+            # didn't fix, and try to force-import them via the merged
+            # mapping table. Wrapped so a failure here can never break the
+            # surrounding missing-episode search cycle.
+            try:
+                # `instance_name` here is actually `instance_key` as set by the caller
+                # in background.py ("Stable ID for DB/history keying" — instance_id when
+                # available, falling back to the display name only for legacy/
+                # single-instance configs) — the same value already used a few lines up
+                # for is_processed/add_processed_id/log_processed_media. That's the real
+                # per-instance identifier in scope here, so it's what scopes the merged
+                # mapping-table lookup to the correct Sonarr instance (Finding 1).
+                stuck_result = resolve_stuck_queue_items(
+                    api_url, api_key, api_timeout, series_id, sonarr_instance_id=instance_name
+                )
+                if stuck_result["resolved"] > 0:
+                    sonarr_logger.info(f"Resolved {stuck_result['resolved']} stuck import(s) via TMDB episode-group mapping for series {series_id}")
+            except Exception as e:
+                sonarr_logger.error(f"Stuck-import resolution failed for series {series_id}: {e}")
         else:
             sonarr_logger.error(f"Failed to trigger search for {series_title}.")
     
